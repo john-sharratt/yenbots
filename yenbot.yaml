@@ -1,0 +1,11 @@
+# Yen Bots' service config, as it runs on BlackWorld (docs/running.md).
+site_name: Yen Bots
+bind: "127.0.0.1:8096"
+data_dir: "D:/yenbot/data"
+live_dir: "D:/yenbot/live"
+# The admins, by Google address: they approve accounts and see every app's data.
+admins:
+  - yensharratt@gmail.com
+  - johnathan.sharratt@gmail.com
+# A new account waits for an admin's approval.
+registration: approve

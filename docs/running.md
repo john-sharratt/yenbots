@@ -1,0 +1,30 @@
+# Running Yen Bots
+
+## Where it is
+
+| | |
+|---|---|
+| Machine | BlackWorld, beside the gateway |
+| Service | `yenbot`, supervised by keep (`keep/stable/yenbot.exe`) |
+| Listens | `127.0.0.1:8096` — loopback only; the gateway forwards to it |
+| Config | `D:\yenbot\yenbot.yaml` (from this repository's `yenbot.yaml`) |
+| Store | `D:\yenbot\data\yenbot.db` — SQLite, schema migrated on start |
+| Live files | `D:\yenbot\live` — a checkout of `origin/main`, never edited by hand |
+
+## Releasing
+
+A change under `src/`, `web/`, `Cargo.toml` or `build.rs` is a new binary:
+
+1. A Zen task commits it to `main` and pushes.
+2. `service_deploy {host: BlackWorld, service: yenbot}` builds it on BlackWorld and has
+   keep try it.
+3. keep runs the new binary and keeps it once it prints `INFO serving` on stderr, or
+   puts the old one back. keep only tries a build of a commit on `origin/main`: the
+   binary's `--build-info` must name no local changes.
+4. `job_status` on the deploy's handle watches it; `GET /v1/status` answers the build
+   it runs.
+
+## Health
+
+`GET /v1/status`: `{"state": "ready", "build": "<count>-<hash>", "started_at_ms",
+"store": {"schema"}}`.
