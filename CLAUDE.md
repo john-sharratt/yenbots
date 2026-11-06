@@ -26,7 +26,7 @@ what it shows.
 | `src/` | the platform: one concern per file | a release (`service_deploy`) |
 | `web/` | the platform's web files: landing page, framework, design system | a release: the binary embeds it |
 | `apps/<id>/` | one folder per app | an edit, live within a second |
-| `library/` | the art library | an edit |
+| `library/` | the art library: pictures and `catalogue.yaml` | a Zen task: a picture and its line, together (`docs/library.md`) |
 | `templates/` | starting points for a new app | an edit |
 | `docs/` | the manual | an edit |
 | `yenbot.yaml` | the service's config: admins, registration, paths | an edit, then a restart |

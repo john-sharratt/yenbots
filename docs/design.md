@@ -131,7 +131,7 @@ part in a `<form>` as a native control does.
 
 | Tag | Takes | Raises |
 |---|---|---|
-| `<yen-empty>` | `icon`, `heading`; its words; slot `action` | |
+| `<yen-empty>` | `art` (an empty state from the library, `library.md`) or `icon`, `heading`; its words; slot `action` | |
 | `<yen-skeleton>` | `shape`: text (`lines`), circle, block | |
 | `<yen-avatar>` | `name`, `src`, `size`: small, medium, large — initials on the name's own colour when there is no picture | |
 | `<yen-tag>` | `tone`: neutral, accent, success, warning, danger; `icon`, `removable` | `remove` |

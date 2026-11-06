@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, data, errors, events, me, openapi, reload};
+use super::{admin, data, errors, events, library, me, openapi, reload};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -165,6 +165,16 @@ pub const ROUTES: &[Route] = &[
             may("repeats", Ty::Int, "how many more times the page saw it since it last posted it"),
         ],
         handler: || post(errors::report),
+    },
+    Route {
+        method: "GET", path: "/api/v1/library", page: "library",
+        summary: "The art library's pictures, by kind, tag and colour, with the address of each size.",
+        params: &[
+            query("kind", Ty::Str, "`tiles`, `illustrations`, `empty`, `backgrounds` or `stickers`"),
+            query("tag", Ty::Str, "one tag the picture carries"),
+            query("colour", Ty::Str, "the palette colour it is nearest: `coral`, `rose`, `amber`, `sage`, `teal`, `sky`, `violet` or `slate`"),
+        ],
+        body: &[], handler: || get(library::find),
     },
     Route {
         method: "GET", path: "/api/v1/openapi.json", page: "site",

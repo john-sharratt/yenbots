@@ -15,6 +15,7 @@ mod config;
 mod data;
 mod gate;
 mod git;
+mod library;
 mod logs;
 mod publish;
 mod serve;
@@ -37,6 +38,7 @@ use app::App;
 use apps::Apps;
 use config::Config;
 use data::changes::Changes;
+use library::Library;
 use logs::browser::Repeats;
 use logs::layer::StoreLayer;
 use logs::Logs;
@@ -80,13 +82,21 @@ async fn main() -> Result<()> {
         .to_string();
     let reloads = Reloads::new();
     let apps = Apps::open(cfg.live_dir.clone());
+    let library = Library::new(cfg.live_dir.clone(), cfg.library_cache_dir());
     {
-        // Each move of the live checkout reads the apps again.
-        let (apps, mut moved) = (apps.clone(), reloads.subscribe());
+        // The library is read once at start, then again — with the apps —
+        // on each move of the live checkout.
+        let (apps, library, mut moved) = (apps.clone(), library.clone(), reloads.subscribe());
         tokio::spawn(async move {
+            let first = library.clone();
+            let _ = tokio::task::spawn_blocking(move || first.reload()).await;
             while moved.recv().await.is_ok() {
-                let apps = apps.clone();
-                let _ = tokio::task::spawn_blocking(move || apps.reload()).await;
+                let (apps, library) = (apps.clone(), library.clone());
+                let _ = tokio::task::spawn_blocking(move || {
+                    apps.reload();
+                    library.reload();
+                })
+                .await;
             }
         });
     }
@@ -103,6 +113,7 @@ async fn main() -> Result<()> {
         store,
         logs,
         apps,
+        library,
         reloads,
         changes: Changes::new(),
         repeats: Repeats::new(),

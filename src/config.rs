@@ -109,6 +109,11 @@ impl Config {
     pub fn backups_dir(&self) -> PathBuf {
         self.data_dir.join("backups")
     }
+
+    /// Where the art library's sized pictures are kept.
+    pub fn library_cache_dir(&self) -> PathBuf {
+        self.data_dir.join("library")
+    }
 }
 
 #[cfg(test)]

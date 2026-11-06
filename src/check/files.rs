@@ -1,8 +1,9 @@
 //! The files the check reads, from a folder on disk or from a commit: an
 //! app's folder (`apps/<id>/`), with its text files read and every other file
-//! known by name; the art library by name alone (`library/`), for the tiles
-//! a manifest names; and the app-building guide (`docs/building-an-app.md`),
-//! for its edition. Paths are from the repository's root, in `/`.
+//! known by name; the art library by name (`library/`) with its catalogue
+//! read, for the pictures an app names; and the app-building guide
+//! (`docs/building-an-app.md`), for its edition. Paths are from the
+//! repository's root, in `/`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
@@ -12,9 +13,16 @@ use std::process::{Command, Stdio};
 use anyhow::{anyhow, bail, Context, Result};
 
 use crate::git::git_bytes;
+use crate::library::catalogue::PATH as CATALOGUE;
 
 /// The guide every app is built to (§17.3).
 pub const GUIDE: &str = "docs/building-an-app.md";
+
+/// Whether `path` is a file the check reads the text of, besides an app's
+/// own: the guide and the library's catalogue.
+fn read_whole(path: &str) -> bool {
+    path == GUIDE || path == CATALOGUE
+}
 
 /// The files whose text the check reads; any other is known by name.
 const TEXT: &[&str] = &[
@@ -98,9 +106,11 @@ pub fn from_disk(root: &Path, id: &str) -> Result<Files> {
     let mut files = Files::default();
     walk(root, &root.join("apps").join(id), &mut files, true)?;
     walk(root, &root.join("library"), &mut files, false)?;
-    let guide = root.join(GUIDE);
-    if guide.is_file() {
-        files.add(GUIDE, std::fs::read(&guide)?);
+    for path in [GUIDE, CATALOGUE] {
+        let file = root.join(path);
+        if file.is_file() {
+            files.add(path, std::fs::read(&file)?);
+        }
     }
     Ok(files)
 }
@@ -133,11 +143,20 @@ fn walk(root: &Path, dir: &Path, files: &mut Files, read: bool) -> Result<()> {
 /// them in the repository at `repo` — read from its objects, never from a
 /// working tree.
 pub fn from_commit(repo: &Path, commit: &str, id: &str) -> Result<Files> {
-    let app = format!("apps/{id}/");
-    let listed = git_bytes(
-        repo,
-        &["ls-tree", "-r", "-z", commit, "--", &app, "library", GUIDE],
-    )?;
+    read_commit(repo, commit, Some(&format!("apps/{id}/")))
+}
+
+/// The library's names and its catalogue, and the guide, as `commit` holds
+/// them: what the library's own check reads.
+pub fn library_from_commit(repo: &Path, commit: &str) -> Result<Files> {
+    read_commit(repo, commit, None)
+}
+
+fn read_commit(repo: &Path, commit: &str, app: Option<&str>) -> Result<Files> {
+    let mut args = vec!["ls-tree", "-r", "-z", commit, "--"];
+    args.extend(app);
+    args.extend(["library", GUIDE]);
+    let listed = git_bytes(repo, &args)?;
     // Each entry: "<mode> <type> <object>\t<path>\0".
     let mut wanted: Vec<(String, String)> = Vec::new();
     let mut files = Files::default();
@@ -149,7 +168,7 @@ pub fn from_commit(repo: &Path, commit: &str, id: &str) -> Result<Files> {
         if kind != Some("blob") {
             continue;
         }
-        if path.starts_with(&app) || path == GUIDE {
+        if app.is_some_and(|a| path.starts_with(a)) || read_whole(path) {
             wanted.push((
                 path.to_string(),
                 object.context("an object id")?.to_string(),
@@ -252,17 +271,24 @@ mod tests {
         put(root, "apps/notes/pages/home.js", b"export {};\n");
         put(root, "apps/notes/style.css", &[0xff, 0xfe]);
         put(root, "apps/other/app.yaml", b"id: other\nname: Other\n");
-        put(root, "library/tiles/bell.svg", b"<svg/>");
+        put(root, "library/tiles/bell.png", &[0x89, b'P']);
+        put(root, CATALOGUE, b"# the pictures\n");
         put(root, GUIDE, b"# Building an app\n\nEdition: 3\n");
     }
 
-    fn expected() -> Files {
+    fn library() -> Files {
         let mut f = Files::default();
+        f.name("library/tiles/bell.png");
+        f.add(CATALOGUE, b"# the pictures\n".to_vec());
+        f.add(GUIDE, b"# Building an app\n\nEdition: 3\n".to_vec());
+        f
+    }
+
+    fn expected() -> Files {
+        let mut f = library();
         f.add("apps/notes/app.yaml", b"id: notes\nname: Notes\n".to_vec());
         f.add("apps/notes/pages/home.js", b"export {};\n".to_vec());
         f.add("apps/notes/style.css", vec![0xff, 0xfe]);
-        f.name("library/tiles/bell.svg");
-        f.add(GUIDE, b"# Building an app\n\nEdition: 3\n".to_vec());
         f
     }
 
@@ -287,6 +313,7 @@ mod tests {
         // A change on disk after the commit is not what the commit holds.
         put(dir.path(), "apps/notes/pages/home.js", b"changed\n");
         assert_eq!(from_commit(dir.path(), &head, "notes").unwrap(), expected());
+        assert_eq!(library_from_commit(dir.path(), &head).unwrap(), library());
         assert_eq!(
             from_commit(dir.path(), &head, "absent")
                 .unwrap()

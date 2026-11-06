@@ -31,6 +31,17 @@ export class Sdk {
     this.routes = signal([]);
     this.title = signal("");
     this.collections = new Map();
+    /** The art library (§15.3): `find({kind, tag, colour})` answers its pictures. */
+    this.library = {
+      find: async (query = {}) => {
+        const q = ["kind", "tag", "colour"]
+          .filter((k) => query[k])
+          .map((k) => `${k}=${encodeURIComponent(query[k])}`)
+          .join("&");
+        const answer = await this.api.call("GET", q ? `/library?${q}` : "/library");
+        return answer.pictures;
+      },
+    };
     this.queue = new Queue({
       send: (w) => this.send(w),
       storage,

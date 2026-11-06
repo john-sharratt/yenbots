@@ -1,21 +1,20 @@
-//! `references`: everything an app names is there — its tile in the
-//! library, each schedule's workflow, each collection its code opens — and a
-//! collection's version only rises, each step with the migration that takes
-//! a record up it (§7.5).
+//! `references`: everything an app names is there — its tile and every
+//! picture its pages name in the library's catalogue, each schedule's
+//! workflow, each collection its code opens — and a collection's version
+//! only rises, each step with the migration that takes a record up it
+//! (§7.5).
 
 use regex::Regex;
 
 use crate::apps::manifest::Manifest;
 use crate::check::files::Files;
-use crate::check::source::line_of;
+use crate::check::source::{css_without_comments, line_of};
 use crate::check::{Before, Refusal};
+use crate::library::check::keys;
 
 use super::{app_dir, scripts};
 
 pub const RULE: &str = "references";
-
-/// The extensions a library picture may have.
-const PICTURES: &[&str] = &["svg", "png", "webp", "jpg", "jpeg"];
 
 /// The line of `app.yaml` first holding `needle`, if it does.
 fn line_in(text: &str, needle: &str) -> Option<usize> {
@@ -35,15 +34,51 @@ pub fn check(files: &Files, id: &str, m: &Manifest, before: &Before, out: &mut V
         ));
     };
 
+    let library = keys(files);
     if let Some(tile) = &m.tile {
-        let there = tile.starts_with("library/")
-            && (files.has(tile) || PICTURES.iter().any(|e| files.has(&format!("{tile}.{e}"))));
+        let there = tile
+            .strip_prefix("library/")
+            .is_some_and(|key| key.starts_with("tiles/") && library.contains(key));
         if !there {
             refuse(
                 out,
                 "tile:",
-                format!("names the tile `{tile}`, which is not in the art library"),
+                format!("names the tile `{tile}`, which is not in the art library (/_library?kind=tiles)"),
             );
+        }
+    }
+
+    // `<yen-empty art="no-recipes">` names `empty/no-recipes`; a URL names
+    // `/_library/<kind>/<id>-<width>.webp`.
+    let art = Regex::new(r#"\bart="([^"$]+)""#).unwrap();
+    let url = Regex::new(r"/_library/([a-z]+/[a-z0-9-]+)-[0-9]+\.webp").unwrap();
+    let mut texts = scripts(files, id);
+    for (path, text) in files.texts_under(&dir) {
+        if path.ends_with(".css") {
+            texts.push((path.to_string(), css_without_comments(text)));
+        } else if path.ends_with(".html") {
+            texts.push((path.to_string(), text.to_string()));
+        }
+    }
+    for (path, text) in texts {
+        let named = art
+            .captures_iter(&text)
+            .map(|c| (c.get(1).unwrap().start(), format!("empty/{}", &c[1])))
+            .chain(
+                url.captures_iter(&text)
+                    .map(|c| (c.get(1).unwrap().start(), c[1].to_string())),
+            );
+        for (at, key) in named {
+            if !library.contains(&key) {
+                out.push(Refusal::new(
+                    RULE,
+                    path.clone(),
+                    Some(line_of(&text, at)),
+                    format!(
+                        "names the picture `{key}`, which is not in the art library (/_library)"
+                    ),
+                ));
+            }
         }
     }
 
@@ -110,8 +145,16 @@ pub fn check(files: &Files, id: &str, m: &Manifest, before: &Before, out: &mut V
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::library::catalogue::PATH;
 
     const YAML: &str = "id: notes\nname: Notes\ntile: library/tiles/bell\ncollections:\n  notes:\n    version: 3\n    fields:\n      text: { type: text }\nschedules:\n  - every: daily 07:30\n    run: morning\n";
+
+    /// The library: a bell tile and one empty state.
+    const CATALOGUE: &str = "tiles/bell:\n  tags: [bell]\n  seed: 1\n  prompt: A bell.\nempty/no-notes:\n  tags: [notes]\n  seed: 2\n  prompt: A blank page.\n";
+
+    fn with_library(f: &mut Files) {
+        f.add(PATH, CATALOGUE.as_bytes().to_vec());
+    }
 
     fn files(extra: &[(&str, &str)]) -> Files {
         let mut f = Files::default();
@@ -126,6 +169,7 @@ mod tests {
         let m = Manifest::parse(f.text["apps/notes/app.yaml"].as_str(), "notes").unwrap();
         let mut out = Vec::new();
         check(f, "notes", &m, &Before { manifest: before }, &mut out);
+        out.sort();
         out.iter().map(Refusal::to_string).collect()
     }
 
@@ -148,24 +192,60 @@ mod tests {
                 "apps/notes/stores/notes.js",
                 "export const notes = app.collection(\"notes\");",
             ),
+            (
+                "apps/notes/pages/home.js",
+                "html`<yen-empty art=\"no-notes\" heading=\"No notes\"></yen-empty><yen-empty art=${x}></yen-empty>`",
+            ),
+            (
+                "apps/notes/style.css",
+                "header { background: url(\"/_library/tiles/bell-256.webp\"); }",
+            ),
         ]);
-        f.name("library/tiles/bell.svg");
+        with_library(&mut f);
         assert_eq!(run(&f, None), Vec::<String>::new());
     }
 
     #[test]
     fn what_is_not_there_is_refused_on_its_line() {
-        let f = files(&[(
-            "apps/notes/stores/notes.js",
-            "// app.collection(\"commented\")\nexport const notes = app.collection('notez');",
-        )]);
+        let f = files(&[
+            (
+                "apps/notes/stores/notes.js",
+                "// app.collection(\"commented\")\nexport const notes = app.collection('notez');",
+            ),
+            (
+                "apps/notes/pages/home.js",
+                "// art=\"commented\"\nhtml`<yen-empty art=\"no-recipes\"></yen-empty>`",
+            ),
+            (
+                "apps/notes/index.html",
+                "<link rel=\"icon\" href=\"/_library/tiles/cup-128.webp\">",
+            ),
+        ]);
         assert_eq!(
             run(&f, None),
             [
-                "apps/notes/app.yaml:3 names the tile `library/tiles/bell`, which is not in the art library",
+                "apps/notes/app.yaml:3 names the tile `library/tiles/bell`, which is not in the art library (/_library?kind=tiles)",
                 "apps/notes/app.yaml:11 a schedule runs `morning`, but there is no workflows/morning.js",
+                "apps/notes/index.html:1 names the picture `tiles/cup`, which is not in the art library (/_library)",
+                "apps/notes/pages/home.js:2 names the picture `empty/no-recipes`, which is not in the art library (/_library)",
                 "apps/notes/stores/notes.js:2 opens the collection `notez`, which app.yaml does not declare",
             ]
+        );
+    }
+
+    /// **A tile is a tile**: a picture of another kind is refused as one.
+    #[test]
+    fn a_tile_names_a_tile() {
+        let mut f = files(&[("apps/notes/workflows/morning.js", "")]);
+        with_library(&mut f);
+        let yaml = YAML.replace("library/tiles/bell", "library/empty/no-notes");
+        f.add("apps/notes/app.yaml", yaml.into_bytes());
+        let m = Manifest::parse(f.text["apps/notes/app.yaml"].as_str(), "notes").unwrap();
+        let mut out = Vec::new();
+        check(&f, "notes", &m, &Before { manifest: None }, &mut out);
+        assert_eq!(
+            out.iter().map(Refusal::to_string).collect::<Vec<_>>(),
+            ["apps/notes/app.yaml:3 names the tile `library/empty/no-notes`, which is not in the art library (/_library?kind=tiles)"]
         );
     }
 
@@ -177,7 +257,7 @@ mod tests {
             ("apps/notes/workflows/morning.js", ""),
             ("apps/notes/workflows/migrate-notes-2.js", ""),
         ]);
-        f.name("library/tiles/bell.png");
+        with_library(&mut f);
         assert_eq!(
             run(&f, Some(&was(1))),
             ["apps/notes/app.yaml:5 raises notes to version 3 without workflows/migrate-notes-3.js, which turns a record at version 2 into one at 3"]

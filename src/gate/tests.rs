@@ -166,6 +166,61 @@ fn a_change_is_checked_against_what_main_held() {
     assert_eq!(answer(r.live.path(), &gone), Answer::Ok);
 }
 
+/// **A change to the library is held to its catalogue**, and checks every
+/// app with it: a picture an app names, taken out, refuses the app.
+#[test]
+fn a_change_to_the_library_is_held_to_its_catalogue() {
+    let r = repos();
+    let line = "empty/no-recipes:\n  tags: [cooking]\n  seed: 3\n  prompt: An empty pot.\n";
+    let unpictured = candidate(&r, "c8", &[("library/catalogue.yaml", line)]);
+    assert_eq!(
+        answer(r.live.path(), &unpictured),
+        Answer::Refused(
+            "library/catalogue.yaml:1 names `empty/no-recipes`, but there is no library/empty/no-recipes.png; \
+             commit the picture, or take the line out"
+                .into()
+        )
+    );
+    let page = recipes().text["apps/recipes/pages/home.js"].replacen(
+        "html`",
+        "html`<yen-empty art=\"no-recipes\" heading=\"No recipes\"></yen-empty>",
+        1,
+    );
+    let whole = candidate(
+        &r,
+        "c9",
+        &[
+            ("library/catalogue.yaml", line),
+            ("library/empty/no-recipes.png", "\u{89}PNG"),
+            ("apps/recipes/pages/home.js", &page),
+        ],
+    );
+    assert_eq!(answer(r.live.path(), &whole), Answer::Ok);
+
+    // Landed; then a change that takes the picture out alone.
+    run(
+        r.writer.path(),
+        &["fetch", "-q", "origin", "zen/candidate/c9"],
+    );
+    run(r.writer.path(), &["reset", "-q", "--hard", "FETCH_HEAD"]);
+    run(r.writer.path(), &["push", "-q", "origin", "HEAD:main"]);
+    let main = run(r.writer.path(), &["rev-parse", "HEAD"]);
+    let r = Repos { main, ..r };
+    run(
+        r.writer.path(),
+        &["rm", "-q", "library/empty/no-recipes.png"],
+    );
+    put(r.writer.path(), "library/catalogue.yaml", "");
+    let taken = candidate(&r, "c10", &[]);
+    assert_eq!(
+        answer(r.live.path(), &taken),
+        Answer::Refused(
+            "apps/recipes/pages/home.js:7 names the picture `empty/no-recipes`, which is not in the art library (/_library)"
+                .into()
+        )
+    );
+}
+
 /// **Another branch is answered at once; main is never deleted; a candidate
 /// that is not the commit asked about, or cannot be read, is refused.**
 #[test]

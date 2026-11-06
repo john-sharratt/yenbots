@@ -29,13 +29,14 @@ here either — the API refuses it on every write.
 | Rule | Refuses | Instead |
 |---|---|---|
 | `manifest` | An app folder without `app.yaml`; a manifest that does not parse, names something badly, declares a reserved field, or has a theme too pale to read | Fix what the message names (`docs/design.md` for the theme) |
-| `references` | A `tile` not in the library; a schedule's `run` with no `workflows/<run>.js`; `.collection("x")` for a collection `app.yaml` does not declare; a collection's `version` lowered, or raised without `workflows/migrate-<coll>-<n>.js` for each step | Name what is there, or add it |
+| `references` | A `tile`, an `art="…"` or a `/_library/…` address the library's catalogue does not hold; a schedule's `run` with no `workflows/<run>.js`; `.collection("x")` for a collection `app.yaml` does not declare; a collection's `version` lowered, or raised without `workflows/migrate-<coll>-<n>.js` for each step | Name what is there, or add it |
 | `guide` | A new app with no `guide:`; a changed app built to an older edition of `docs/building-an-app.md` | Read the guide, bring the app up to it, set `guide:` to its edition |
 | `layout` | A file outside the shape (below); a component defined outside `pages/` or `components/`, two in one file, or one whose file is not named for its tag; a component importing a store | Keep to the shape; pass data to a component as properties |
 | `tokens` | A literal colour (`#…`, `rgb(…)`, a named colour) anywhere in styles; a literal size for spacing, corners, type or line height; a font named rather than `var(--yen-font-…)` | `var(--yen-…)` (`docs/design.md`) |
 | `markup` | `unsafeHTML` and its kin; `innerHTML =`, `insertAdjacentHTML`, `document.write`; `eval`, `new Function`; an `<img>` with no `alt`; an inline `style="…"`; a store's records drawn with `.value.map` | `${…}` in `html`; `alt=""` for decoration; a class or `style=${styleMap(…)}`; `<yen-list>` |
 | `outside` | A script, style, picture, font or call to an address outside the site | The site's own: the framework, the library, the app's files, the API |
 | `workflows` | A workflow that does not compile, imports anything but the app's other workflow files, does work as it loads, or has no default-exported function | `export default async function name(ctx, args) { … }` |
+| `library` | In `library/`: a catalogue that does not parse, a line whose picture is not there, a picture with no line, any other file. Checked on a change to the library, with every app — an app may name a picture the change took out | `library/<kind>/<id>.png` and its line, together (`docs/library.md`) |
 
 ## An app's shape
 
@@ -80,5 +81,6 @@ render() {
 | File | |
 |---|---|
 | `src/check/` | the check: `mod.rs` runs the rules, `rules/` has one file each |
+| `src/library/check.rs` | the library's rule |
 | `src/gate/` | the gate: answers `gate/yenbot` on the gateway's bus |
 | `src/apps/mod.rs` | the check on load, and the last good version kept |

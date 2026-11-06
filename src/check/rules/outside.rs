@@ -92,9 +92,9 @@ mod tests {
                 ("apps/notes/app.js", "import { app } from \"/_/yen.js\";\nimport './pages/home.js';\nfetch('/api/v1/me');"),
                 (
                     "apps/notes/pages/home.js",
-                    "// import 'https://cdn.example/x.js'\nhtml`<img src=\"/library/tiles/bell.svg\" alt=\"\"><a href=\"https://example.com\">a link</a>`",
+                    "// import 'https://cdn.example/x.js'\nhtml`<img src=\"/_library/stickers/star-256.webp\" alt=\"\"><a href=\"https://example.com\">a link</a>`",
                 ),
-                ("apps/notes/style.css", "a { background: url(\"/library/backgrounds/paper.png\"); }"),
+                ("apps/notes/style.css", "a { background: url(\"/_library/backgrounds/paper-512.webp\"); }"),
             ]),
             Vec::<String>::new()
         );

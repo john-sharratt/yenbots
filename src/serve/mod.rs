@@ -6,6 +6,8 @@
 //! | `GET /_/…` | the platform's web files, the framework and the design system, embedded ([`web`]) |
 //! | `GET /_/theme/{id}.css` | an app's theme, from its manifest ([`theme`]) |
 //! | `GET /_design` | the design system's catalogue |
+//! | `GET /_library` | the art library's page |
+//! | `GET /_library/{kind}/{id}-{width}.webp` | a library picture at one of its sizes ([`library`]) |
 //! | `GET /a/{id}/…` | an app's files and pages, from the live checkout ([`app_files`]) |
 //! | `/api/v1/…` | the API, every route defined once in [`routes::ROUTES`] |
 //! | `GET /v1/status` | the site's health ([`status`]) |
@@ -22,6 +24,7 @@ pub mod asset;
 pub mod data;
 pub mod errors;
 pub mod events;
+pub mod library;
 pub mod me;
 pub mod openapi;
 pub mod reload;
@@ -49,6 +52,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/_/*path", get(web::platform_file))
         .route("/_design", get(web::design))
         .route("/_design/*path", get(web::design_file))
+        .route("/_library", get(web::library))
+        .route("/_library/:kind/:file", get(library::picture))
         .route("/a/:id", get(app_files::bare))
         .route("/a/:id/", get(app_files::index))
         .route("/a/:id/*path", get(app_files::file))
@@ -64,6 +69,7 @@ pub fn router(app: Arc<App>) -> Router {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use std::path::Path;
     use std::time::Duration;
 
@@ -71,6 +77,7 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use axum::response::Response;
     use futures_util::StreamExt;
+    use image::{ImageFormat, Rgba, RgbaImage};
     use serde_json::{json, Value};
     use tower::ServiceExt;
 
@@ -80,6 +87,7 @@ mod tests {
     use crate::apps::Apps;
     use crate::config::Config;
     use crate::data::changes::{Changes, Feed};
+    use crate::library::Library;
     use crate::logs::browser::Repeats;
     use crate::logs::{Level, Line, Logs};
     use crate::publish::Reloads;
@@ -91,6 +99,10 @@ mod tests {
                         fields:\n      text: { type: text, required: true }\n    search: [text]\n";
 
     fn serving(apps: Apps) -> Arc<App> {
+        serving_with(apps, Library::new("l", "l/cache"))
+    }
+
+    fn serving_with(apps: Apps, library: Library) -> Arc<App> {
         let store = Arc::new(Store::in_memory().unwrap());
         Arc::new(App {
             cfg: Config::from_yaml(
@@ -100,6 +112,7 @@ mod tests {
             .unwrap(),
             logs: Logs::new(store.clone()),
             apps,
+            library,
             reloads: Reloads::new(),
             changes: Changes::new(),
             repeats: Repeats::new(),
@@ -596,6 +609,74 @@ mod tests {
         assert_eq!(
             fetch(&app, "/_design/../index.html").await.0,
             StatusCode::NOT_FOUND
+        );
+    }
+
+    /// **The library is served to anyone**: its page, each picture at a size
+    /// it has, and the search, which refuses a kind or colour there is not.
+    #[tokio::test]
+    async fn the_library_is_served() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("live");
+        std::fs::create_dir_all(root.join("library/tiles")).unwrap();
+        std::fs::write(
+            root.join("library/catalogue.yaml"),
+            "tiles/bell-coral:\n  tags: [bell]\n  seed: 7\n  prompt: A bell.\n",
+        )
+        .unwrap();
+        let mut png = Cursor::new(Vec::new());
+        RgbaImage::from_pixel(64, 64, Rgba([212, 87, 61, 255]))
+            .write_to(&mut png, ImageFormat::Png)
+            .unwrap();
+        std::fs::write(root.join("library/tiles/bell-coral.png"), png.into_inner()).unwrap();
+        let library = Library::new(root, dir.path().join("cache"));
+        library.reload();
+        let app = serving_with(Apps::of(Vec::new()), library);
+
+        assert_eq!(fetch(&app, "/_library").await.0, StatusCode::OK);
+        assert_eq!(fetch(&app, "/_/site/library.js").await.0, StatusCode::OK);
+        let res = router(app.clone())
+            .oneshot(
+                Request::get("/_library/tiles/bell-coral-128.webp")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers()["content-type"], "image/webp");
+        for missing in [
+            "/_library/tiles/bell-coral-100.webp",
+            "/_library/tiles/cup-128.webp",
+            "/_library/stickers/bell-coral-128.webp",
+        ] {
+            assert_eq!(
+                fetch(&app, missing).await.0,
+                StatusCode::NOT_FOUND,
+                "{missing}"
+            );
+        }
+
+        let (status, body) = get_as(&app, "/api/v1/library?kind=tiles&colour=coral", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let pictures = body["pictures"].as_array().unwrap();
+        assert_eq!(pictures.len(), 1);
+        assert_eq!(pictures[0]["id"], "tiles/bell-coral");
+        assert_eq!(pictures[0]["kind"], "tiles");
+        assert_eq!(pictures[0]["colour"], "#d4573d");
+        assert_eq!(pictures[0]["palette"], "coral");
+        assert_eq!(pictures[0]["sizes"].as_array().unwrap().len(), 3);
+        let (_, none) = get_as(&app, "/api/v1/library?tag=cup", None).await;
+        assert_eq!(none, json!({"pictures": []}));
+        let (status, bad) = get_as(&app, "/api/v1/library?kind=hats", None).await;
+        assert_eq!(
+            (status, bad["error"].clone()),
+            (StatusCode::BAD_REQUEST, json!("bad_kind"))
+        );
+        let (status, bad) = get_as(&app, "/api/v1/library?colour=red", None).await;
+        assert_eq!(
+            (status, bad["error"].clone()),
+            (StatusCode::BAD_REQUEST, json!("bad_colour"))
         );
     }
 

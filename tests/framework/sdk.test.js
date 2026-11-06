@@ -154,6 +154,20 @@ test("an account not yet approved opens nothing", async () => {
   eq(s.info.value, null);
 });
 
+test("the library is found by kind, tag and colour", async () => {
+  const bell = { id: "tiles/bell-coral", kind: "tiles", tags: ["bell"] };
+  const { s, calls } = sdk([
+    [200, { pictures: [bell] }],
+    [200, { pictures: [] }],
+  ]);
+  eq(await s.library.find({ kind: "tiles", tag: "bell", other: "x" }), [bell]);
+  eq(await s.library.find(), []);
+  eq(
+    calls.map((c) => `${c.method} ${c.url}`),
+    ["GET /api/v1/library?kind=tiles&tag=bell", "GET /api/v1/library"],
+  );
+});
+
 test("an app not shared with the caller is closed", async () => {
   const { s } = sdk([
     [200, ME],

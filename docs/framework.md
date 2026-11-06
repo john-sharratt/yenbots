@@ -280,6 +280,9 @@ is "Due", `shopping-list` is "Shopping list".
   or when it next shows if it was hidden.
 - **Text in NFC**: every string written is normalised, so the same
   accented word is always the same bytes.
+- **The art library**: `await app.library.find({kind, tag, colour})`
+  answers its pictures, each with the address of every size
+  (`library.md`).
 
 ## Where it lives
 

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The art library · Yen Bots</title>
+  <link rel="stylesheet" href="/_/yen.css">
+  <link rel="stylesheet" href="/_/site/library.css">
+  <script type="module" src="/_/site/library.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>The art library</h1>
+      <p>Every picture an app may use, in one house style. Name one by its id:
+        <code>tile: library/tiles/&lt;id&gt;</code>, <code>&lt;yen-empty art="&lt;id&gt;"&gt;</code>,
+        or its address. Select a picture to copy its id.</p>
+    </header>
+    <form id="filters" role="search">
+      <div class="row" id="kinds" role="group" aria-label="Kind"></div>
+      <div class="row" id="colours" role="group" aria-label="Colour"></div>
+      <label class="tag-field">Tag <input id="tag" type="search" autocomplete="off" placeholder="cooking, star, garden…"></label>
+    </form>
+    <p id="count" aria-live="polite"></p>
+    <ul id="pictures"></ul>
+  </main>
+</body>
+</html>

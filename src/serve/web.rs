@@ -56,6 +56,11 @@ pub async fn design(headers: HeaderMap) -> Response {
     serve("_design/index.html", &headers)
 }
 
+/// `/_library`: the art library, searchable (§15.3).
+pub async fn library(headers: HeaderMap) -> Response {
+    serve("_library/index.html", &headers)
+}
+
 /// `/_design/…`: the catalogue's own files.
 pub async fn design_file(Path(path): Path<String>, headers: HeaderMap) -> Response {
     if !plain(&path) {
