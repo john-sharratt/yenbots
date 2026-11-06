@@ -56,7 +56,9 @@ tangle. The rules, each with its reason:
 The site serves it for every page of the app — `/a/recipes/`, and a deep link
 such as `/a/recipes/r/7` too — and adds `<base href="/a/recipes/">` to its
 head, so `app.js`, `style.css` and a link to `r/7` mean the same from every
-page. Write every address inside the app relative, with no leading slash.
+page. Write every address inside the app relative, with no leading slash. It
+adds the platform's look (`/_/yen.css`) and the app's theme there too, ahead
+of `style.css` ([`design.md`](design.md)).
 
 ## `app.js`
 
@@ -140,18 +142,24 @@ import "../components/recipe-card.js";
 
 export class RecipesHome extends YenElement {
   render() {
-    if (recipes.loading.value && recipes.value.length === 0) return html`<p>Loading…</p>`;
-    return html`
-      ${recipes.value.map((r) => html`<recipe-card .recipe=${r}></recipe-card>`)}
-      ${recipes.mayAdd ? html`<a href="new">Add a recipe</a>` : ""}
-    `;
+    return html`<yen-page heading="Recipes">
+      <yen-list
+        .items=${recipes.value}
+        .item=${(r) => html`<recipe-card .recipe=${r}></recipe-card>`}
+        ?loading=${recipes.loading.value}
+        empty="No recipes yet"
+        empty-icon="utensils"
+      ></yen-list>
+      ${recipes.mayAdd ? html`<yen-fab icon="plus" href="new">Add a recipe</yen-fab>` : ""}
+    </yen-page>`;
   }
 }
 customElements.define("recipes-home", RecipesHome);
 ```
 
 A page is a `YenElement` — a [Lit](https://lit.dev) component that renders
-again when a signal it read changes. A render that throws is reported and
+again when a signal it read changes — built from the design system's
+components ([`design.md`](design.md)). A render that throws is reported and
 shows the shell's "Something went wrong" panel, saying what. A page with
 parameters reads them from `this.params`, and the address's query string
 (`?tag=soup`) from `this.query`, a `URLSearchParams`:
@@ -194,7 +202,10 @@ customElements.define("recipe-card", RecipeCard);
 ```
 
 It takes its data as properties and raises events with `this.emit(name,
-detail)`, which the page listens to with `@name=${…}`.
+detail)`, which the page listens to with `@name=${…}`. Its styles are in the
+design system's tokens, never literal colours or sizes. `/_/yen.js` also
+gives a component Lit's `repeat`, `classMap`, `live`, `ifDefined` and
+`when`; and a page `toast(words)` and `ask({heading, …})`.
 
 ## A form
 
@@ -285,8 +296,9 @@ is "Due", `shopping-list` is "Shopping list".
 | `web/_/framework/feed.js` | the change feed and the reload signal |
 | `web/_/framework/report.js`, `boot.js` | error reports; the page's app, wired to the browser |
 | `web/_/framework/idb.js` | what a page keeps between visits |
-| `web/_/vendor/` | Lit 3.2.1 and `@preact/signals-core` 1.8.0, pinned byte for byte by a test |
+| `web/_/ui/`, `web/_/yen.css` | the design system ([`design.md`](design.md)) |
+| `web/_/vendor/` | Lit 3.2.1 with its directives and `@preact/signals-core` 1.8.0, pinned byte for byte by a test |
 
 The platform's files are embedded in the binary, so a change to them is a
 release. `tests/framework/*.test.js` test every module that needs no browser,
-in QuickJS, under `cargo test`.
+in QuickJS, under `cargo test`; what needs one is shown on `/_design`.

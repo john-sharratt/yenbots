@@ -3,7 +3,9 @@
 //! | Route | |
 //! |---|---|
 //! | `GET /` | the landing page (`web/index.html`) |
-//! | `GET /_/…` | the platform's web files and the framework, embedded ([`web`]) |
+//! | `GET /_/…` | the platform's web files, the framework and the design system, embedded ([`web`]) |
+//! | `GET /_/theme/{id}.css` | an app's theme, from its manifest ([`theme`]) |
+//! | `GET /_design`, `/_design/vietnamese` | the design system's catalogue and its Vietnamese test page |
 //! | `GET /a/{id}/…` | an app's files and pages, from the live checkout ([`app_files`]) |
 //! | `/api/v1/…` | the API, every route defined once in [`routes::ROUTES`] |
 //! | `GET /v1/status` | the site's health ([`status`]) |
@@ -26,6 +28,7 @@ pub mod reload;
 pub mod reply;
 pub mod routes;
 pub mod status;
+pub mod theme;
 pub mod web;
 
 #[cfg(test)]
@@ -44,6 +47,8 @@ pub fn router(app: Arc<App>) -> Router {
     let mut r = Router::new()
         .route("/", get(web::landing))
         .route("/_/*path", get(web::platform_file))
+        .route("/_design", get(web::design))
+        .route("/_design/*path", get(web::design_file))
         .route("/a/:id", get(app_files::bare))
         .route("/a/:id/", get(app_files::index))
         .route("/a/:id/*path", get(app_files::file))
@@ -71,6 +76,7 @@ mod tests {
 
     use super::*;
     use crate::apps::manifest::Manifest;
+    use crate::apps::theme::Theme;
     use crate::apps::Apps;
     use crate::config::Config;
     use crate::data::changes::{Changes, Feed};
@@ -474,16 +480,20 @@ mod tests {
         std::fs::write(home.join("app.js"), "export {};").unwrap();
         std::fs::write(home.join("workflows").join("remind.js"), "x").unwrap();
         let app = serving(Apps::open(dir.path()));
-        let page = "<head>\n  <base href=\"/a/home/\"></head><yen-app></yen-app>";
+        let theme = theme::href("home", &Theme::default()).unwrap();
+        let page = format!(
+            "<head>\n  <base href=\"/a/home/\">\n  <link rel=\"stylesheet\" href=\"/_/yen.css\">\n  <link \
+             rel=\"stylesheet\" href=\"{theme}\"></head><yen-app></yen-app>"
+        );
         assert_eq!(
             fetch(&app, "/a/home").await,
             (StatusCode::PERMANENT_REDIRECT, "/a/home/".into())
         );
-        assert_eq!(fetch(&app, "/a/home/").await, (StatusCode::OK, page.into()));
         assert_eq!(
-            fetch(&app, "/a/home/r/7").await,
-            (StatusCode::OK, page.into())
+            fetch(&app, "/a/home/").await,
+            (StatusCode::OK, page.clone())
         );
+        assert_eq!(fetch(&app, "/a/home/r/7").await, (StatusCode::OK, page));
         assert_eq!(
             fetch(&app, "/a/home/app.js").await,
             (StatusCode::OK, "export {};".into())
@@ -500,6 +510,63 @@ mod tests {
                 "{hidden}"
             );
         }
+    }
+
+    /// **An app's theme is served as its stylesheet**, an app with none as an
+    /// empty one, and a page links it by its contents' digest, so an edit to
+    /// the theme is a new address.
+    #[tokio::test]
+    async fn an_apps_theme_is_its_stylesheet() {
+        let pink = format!("{HOME}theme:\n  accent: \"#b03a5b\"\n  radius: round\n");
+        let app = serving(Apps::of(vec![
+            Manifest::parse(&pink, "home").unwrap(),
+            Manifest::parse(&HOME.replace("home", "plain"), "plain").unwrap(),
+        ]));
+        let (status, css) = fetch(&app, "/_/theme/home.css").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(css.contains("--yen-accent: #b03a5b;"), "{css}");
+        assert!(
+            css.contains("--yen-radius-button: var(--yen-radius-round-button);"),
+            "{css}"
+        );
+        assert_eq!(
+            fetch(&app, "/_/theme/plain.css").await,
+            (
+                StatusCode::OK,
+                "/* This app's theme, from its manifest. */\n".into()
+            )
+        );
+        for missing in ["/_/theme/nope.css", "/_/theme/home", "/_/theme/../yen.js"] {
+            assert_eq!(
+                fetch(&app, missing).await.0,
+                StatusCode::NOT_FOUND,
+                "{missing}"
+            );
+        }
+        let a = theme::href("home", &app.apps.get("home").unwrap().theme).unwrap();
+        let b = theme::href("home", &Theme::default()).unwrap();
+        assert!(a.starts_with("/_/theme/home.css?v="), "{a}");
+        assert_ne!(a, b);
+    }
+
+    /// **The catalogue and its Vietnamese test page are served**, by name.
+    #[tokio::test]
+    async fn the_catalogue_is_served() {
+        let app = app();
+        for path in [
+            "/_design",
+            "/_design/vietnamese",
+            "/_design/catalogue.js",
+            "/_/yen.css",
+            "/_/icons/sprite.svg",
+        ] {
+            assert_eq!(fetch(&app, path).await.0, StatusCode::OK, "{path}");
+        }
+        assert_eq!(fetch(&app, "/_design/nope").await.0, StatusCode::NOT_FOUND);
+        assert_eq!(
+            fetch(&app, "/_design/../index.html").await.0,
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]

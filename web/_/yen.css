@@ -1,0 +1,108 @@
+/*
+ * The platform's look (§8.5), on every app's pages before the app's own
+ * style.css: the tokens, the two faces, and the page itself — background,
+ * ink, type, links, focus, selection and the page transition. Components
+ * carry their own styles inside their shadow roots, in the same tokens.
+ */
+
+@import url("ui/tokens.css");
+@import url("ui/fonts.css");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--yen-bg);
+  color: var(--yen-ink);
+  font-family: var(--yen-font-text);
+  font-size: var(--yen-text-md);
+  line-height: var(--yen-leading);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-kerning: normal;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--yen-font-heading);
+  line-height: var(--yen-leading-tight);
+  font-weight: var(--yen-weight-semibold);
+  margin: 0 0 var(--yen-space-3);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--yen-text-2xl);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: var(--yen-text-xl);
+}
+
+h3 {
+  font-size: var(--yen-text-lg);
+}
+
+h4 {
+  font-size: var(--yen-text-md);
+}
+
+p {
+  margin: 0 0 var(--yen-space-3);
+  max-width: var(--yen-measure);
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--yen-accent);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+small {
+  font-size: var(--yen-text-sm);
+  color: var(--yen-ink-2);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--yen-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--yen-accent-soft);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--yen-duration-3);
+  animation-timing-function: var(--yen-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}

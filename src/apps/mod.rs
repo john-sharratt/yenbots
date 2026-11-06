@@ -5,6 +5,7 @@
 
 pub mod access;
 pub mod manifest;
+pub mod theme;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

@@ -3,18 +3,28 @@
 //   import { app, defineApp, YenElement, html, css, computed } from "/_/yen.js";
 //
 // - `YenElement`, `html`, `css`, `nothing`: components (Lit), re-rendering
-//   when a signal they read changes.
+//   when a signal they read changes; `repeat`, `classMap`, `live`,
+//   `ifDefined` and `when`, Lit's helpers for writing them.
 // - `signal`, `computed`, `effect`, `batch`, `untracked`: state.
 // - `app`: the app this page is — `app.collection(name, {where, order})`,
 //   `app.me`, `app.queue` — and `defineApp({routes, title})`, its pages.
-// - `<yen-app>`: the shell every app is shown in; `<yen-form>`: a form from
-//   a collection's fields.
+// - The design system's components (`web/_/ui/components/`), every one
+//   defined: `<yen-page>`, `<yen-button>`, `<yen-list>`, `<yen-sheet>`, …;
+//   `<yen-app>`, the shell every app is shown in; `<yen-form>`, a form from a
+//   collection's fields.
+// - `toast(words)` shows a toast; `ask({heading, …})` asks in a dialog.
 // - `go(address)`: show another of the app's pages.
+//
+// Its look is `/_/yen.css`, which the site puts on every app's pages.
 
-export { css, html, nothing, svg } from "./vendor/lit-core.min.js";
+export { classMap, css, html, ifDefined, live, nothing, repeat, svg, when } from "./vendor/lit-all.min.js";
 export { batch, computed, effect, signal, untracked } from "./vendor/signals-core.mjs";
 export { ApiError } from "./framework/api.js";
 export { YenElement } from "./framework/element.js";
+export { ask } from "./ui/components/dialog.js";
+export { toast } from "./ui/toasts.js";
+export { ICONS } from "./ui/icons.js";
+import "./ui/components/index.js";
 import "./framework/form.js";
 import { boot } from "./framework/boot.js";
 

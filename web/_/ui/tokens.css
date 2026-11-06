@@ -1,0 +1,255 @@
+/*
+ * The design tokens (candle/docs/yenbot_app_host.md §8.5): every colour,
+ * size, radius, shadow and motion the platform's pages and every app use.
+ * Apps use these names, never literal colours or sizes.
+ *
+ * The file has three blocks, in this order, and the platform reads it as
+ * well as the browser does (src/apps/theme/tokens.rs): the light values on
+ * :root, the dark values under prefers-color-scheme: dark, and the motion
+ * under prefers-reduced-motion. An app's theme (manifest `theme:`) is a
+ * stylesheet after this one that points the semantic names at other named
+ * values here.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces, by name: the page, a card, a sunken fill, a stronger fill, a rule, an input's edge. */
+  --yen-warm-bg: #fbf7f2;
+  --yen-warm-surface: #ffffff;
+  --yen-warm-surface-2: #f4ede5;
+  --yen-warm-surface-3: #ebe2d8;
+  --yen-warm-line: #e8ded3;
+  --yen-warm-line-strong: #b9a898;
+
+  --yen-plain-bg: #f7f7f8;
+  --yen-plain-surface: #ffffff;
+  --yen-plain-surface-2: #efeff1;
+  --yen-plain-surface-3: #e4e4e8;
+  --yen-plain-line: #e2e2e6;
+  --yen-plain-line-strong: #acacb5;
+
+  --yen-cool-bg: #f3f6fa;
+  --yen-cool-surface: #ffffff;
+  --yen-cool-surface-2: #e9eef5;
+  --yen-cool-surface-3: #dde5ef;
+  --yen-cool-line: #dbe3ec;
+  --yen-cool-line-strong: #a3b1c2;
+
+  --yen-rose-bg: #fcf5f6;
+  --yen-rose-surface: #ffffff;
+  --yen-rose-surface-2: #f7e9ec;
+  --yen-rose-surface-3: #f0dce1;
+  --yen-rose-line: #eedbe0;
+  --yen-rose-line-strong: #c9a5af;
+
+  --yen-sage-bg: #f5f8f3;
+  --yen-sage-surface: #ffffff;
+  --yen-sage-surface-2: #eaf0e6;
+  --yen-sage-surface-3: #dfe7d9;
+  --yen-sage-line: #dde5d7;
+  --yen-sage-line-strong: #a7b69d;
+
+  /* The surface in use: warm unless the app's theme names another. */
+  --yen-bg: var(--yen-warm-bg);
+  --yen-surface: var(--yen-warm-surface);
+  --yen-surface-2: var(--yen-warm-surface-2);
+  --yen-surface-3: var(--yen-warm-surface-3);
+  --yen-line: var(--yen-warm-line);
+  --yen-line-strong: var(--yen-warm-line-strong);
+
+  /* Ink: text, secondary text, and the faint ink of what cannot be used. */
+  --yen-ink: #2a211c;
+  --yen-ink-2: #685a51;
+  --yen-ink-3: #a3958b;
+
+  /* The accent — buttons, links, the app's tile — and the ink on it. */
+  --yen-accent: #c2375b;
+  --yen-on-accent: #ffffff;
+  --yen-accent-soft: color-mix(in srgb, var(--yen-accent) 12%, var(--yen-surface));
+  --yen-focus: var(--yen-accent);
+
+  /* What a state means. */
+  --yen-danger: #b42318;
+  --yen-on-danger: #ffffff;
+  --yen-danger-soft: color-mix(in srgb, var(--yen-danger) 12%, var(--yen-surface));
+  --yen-success: #2a7230;
+  --yen-success-soft: color-mix(in srgb, var(--yen-success) 12%, var(--yen-surface));
+  --yen-warning: #9a5800;
+  --yen-warning-soft: color-mix(in srgb, var(--yen-warning) 14%, var(--yen-surface));
+  --yen-scrim: rgb(26 22 19 / 45%);
+
+  /* Over a photo, which is neither light nor dark: a dark wash and white on it. */
+  --yen-overlay: rgb(0 0 0 / 55%);
+  --yen-overlay-strong: rgb(10 8 7 / 94%);
+  --yen-on-overlay: #ffffff;
+
+  /* The palette by name: tiles, illustrations, charts (§15). */
+  --yen-coral: #d4573d;
+  --yen-rose: #c2375b;
+  --yen-amber: #b7791f;
+  --yen-sage: #5b8a55;
+  --yen-teal: #23807a;
+  --yen-sky: #2f74c0;
+  --yen-violet: #7556c4;
+  --yen-slate: #5d6878;
+
+  --yen-chart-1: var(--yen-accent);
+  --yen-chart-2: var(--yen-teal);
+  --yen-chart-3: var(--yen-amber);
+  --yen-chart-4: var(--yen-sky);
+  --yen-chart-5: var(--yen-violet);
+  --yen-chart-6: var(--yen-sage);
+
+  /* Type: the text face, the display face, and which one headings use. */
+  --yen-font-text: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --yen-font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --yen-font-heading: var(--yen-font-display);
+  --yen-font-mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --yen-text-xs: 0.75rem;
+  --yen-text-sm: 0.875rem;
+  --yen-text-md: 1.0625rem;
+  --yen-text-lg: 1.25rem;
+  --yen-text-xl: 1.5rem;
+  --yen-text-2xl: 2rem;
+  --yen-text-3xl: 2.625rem;
+
+  --yen-weight-regular: 400;
+  --yen-weight-medium: 500;
+  --yen-weight-semibold: 600;
+  --yen-weight-bold: 700;
+
+  /*
+   * Vietnamese stacks two marks above a capital (Ể, Ẫ), and Be Vietnam Pro
+   * sets them high, above the line box: no line is set tighter than 1.4, so
+   * the marks clear the line above, and text that is cut short is clipped
+   * only sideways (overflow-x: clip), never above or below. The test page,
+   * /_design/vietnamese, shows both.
+   */
+  --yen-leading-tight: 1.4;
+  --yen-leading: 1.55;
+  --yen-measure: 65ch;
+
+  /* Space, and how much of it a control takes: compact, normal or roomy. */
+  --yen-space-1: 0.25rem;
+  --yen-space-2: 0.5rem;
+  --yen-space-3: 0.75rem;
+  --yen-space-4: 1rem;
+  --yen-space-5: 1.5rem;
+  --yen-space-6: 2rem;
+  --yen-space-7: 3rem;
+  --yen-space-8: 4rem;
+
+  --yen-density-compact: 0.875;
+  --yen-density-normal: 1;
+  --yen-density-roomy: 1.15;
+  --yen-density: var(--yen-density-normal);
+  --yen-control-height: calc(2.75rem * var(--yen-density));
+  --yen-tap: 2.75rem;
+
+  /* Corners: soft, round or square; small, medium, large, and a button's. */
+  --yen-radius-soft-1: 0.375rem;
+  --yen-radius-soft-2: 0.75rem;
+  --yen-radius-soft-3: 1.25rem;
+  --yen-radius-soft-button: 0.75rem;
+  --yen-radius-round-1: 0.625rem;
+  --yen-radius-round-2: 1.125rem;
+  --yen-radius-round-3: 1.75rem;
+  --yen-radius-round-button: 999rem;
+  --yen-radius-square-1: 0.125rem;
+  --yen-radius-square-2: 0.25rem;
+  --yen-radius-square-3: 0.375rem;
+  --yen-radius-square-button: 0.25rem;
+  --yen-radius-1: var(--yen-radius-soft-1);
+  --yen-radius-2: var(--yen-radius-soft-2);
+  --yen-radius-3: var(--yen-radius-soft-3);
+  --yen-radius-button: var(--yen-radius-soft-button);
+  --yen-radius-pill: 999rem;
+
+  /* Lift: a card, something raised over the page, and a sheet or dialog. */
+  --yen-shadow-1: 0 1px 2px rgb(42 33 28 / 6%), 0 2px 8px rgb(42 33 28 / 6%);
+  --yen-shadow-2: 0 2px 6px rgb(42 33 28 / 8%), 0 8px 24px rgb(42 33 28 / 10%);
+  --yen-shadow-3: 0 8px 20px rgb(42 33 28 / 12%), 0 24px 64px rgb(42 33 28 / 16%);
+
+  /* Motion: a press, a change of state, a page or sheet. */
+  --yen-duration-1: 120ms;
+  --yen-duration-2: 200ms;
+  --yen-duration-3: 320ms;
+  --yen-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --yen-ease-in-out: cubic-bezier(0.6, 0, 0.2, 1);
+  --yen-ease-spring: cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --yen-warm-bg: #1a1613;
+    --yen-warm-surface: #231e1a;
+    --yen-warm-surface-2: #2c2621;
+    --yen-warm-surface-3: #383029;
+    --yen-warm-line: #3b332d;
+    --yen-warm-line-strong: #6e6157;
+
+    --yen-plain-bg: #141416;
+    --yen-plain-surface: #1c1c1f;
+    --yen-plain-surface-2: #252529;
+    --yen-plain-surface-3: #303035;
+    --yen-plain-line: #34343a;
+    --yen-plain-line-strong: #66666f;
+
+    --yen-cool-bg: #12161b;
+    --yen-cool-surface: #1a2027;
+    --yen-cool-surface-2: #222a33;
+    --yen-cool-surface-3: #2c3640;
+    --yen-cool-line: #2f3943;
+    --yen-cool-line-strong: #5d6c7b;
+
+    --yen-rose-bg: #1c1416;
+    --yen-rose-surface: #251b1e;
+    --yen-rose-surface-2: #2f2327;
+    --yen-rose-surface-3: #3b2c31;
+    --yen-rose-line: #3e2f34;
+    --yen-rose-line-strong: #735a62;
+
+    --yen-sage-bg: #131813;
+    --yen-sage-surface: #1b211b;
+    --yen-sage-surface-2: #242b23;
+    --yen-sage-surface-3: #2e372d;
+    --yen-sage-line: #313a30;
+    --yen-sage-line-strong: #5f6e5c;
+
+    --yen-ink: #f4ede6;
+    --yen-ink-2: #bcafa4;
+    --yen-ink-3: #7a6e65;
+
+    --yen-accent: #f27b98;
+    --yen-on-accent: #1a1613;
+
+    --yen-danger: #f97066;
+    --yen-on-danger: #1a1613;
+    --yen-success: #6fcf75;
+    --yen-warning: #f5b54a;
+    --yen-scrim: rgb(0 0 0 / 60%);
+
+    --yen-coral: #f08a72;
+    --yen-rose: #f27b98;
+    --yen-amber: #e8b25a;
+    --yen-sage: #8fbf88;
+    --yen-teal: #5cc2bb;
+    --yen-sky: #74aef0;
+    --yen-violet: #a993ea;
+    --yen-slate: #9aa5b5;
+
+    --yen-shadow-1: 0 1px 2px rgb(0 0 0 / 30%), 0 2px 8px rgb(0 0 0 / 24%);
+    --yen-shadow-2: 0 2px 6px rgb(0 0 0 / 34%), 0 8px 24px rgb(0 0 0 / 34%);
+    --yen-shadow-3: 0 8px 20px rgb(0 0 0 / 40%), 0 24px 64px rgb(0 0 0 / 48%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --yen-duration-1: 0.01ms;
+    --yen-duration-2: 0.01ms;
+    --yen-duration-3: 0.01ms;
+  }
+}

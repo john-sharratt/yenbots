@@ -9,7 +9,9 @@
 // absent. `saved` carries the record — or null for one kept on the device
 // until the connection is back, which the form says.
 
-import { css, html, nothing } from "../vendor/lit-core.min.js";
+import { css, html, nothing } from "../vendor/lit-all.min.js";
+import "../ui/components/icon.js";
+import { base, button, control, field, spinner } from "../ui/styles.js";
 import { ApiError } from "./api.js";
 import { YenElement } from "./element.js";
 import { controlOf, FieldError, fromInput, labelOf, toInput, writeOf } from "./fields.js";
@@ -36,30 +38,56 @@ export class YenForm extends YenElement {
     note: { state: true },
   };
 
-  static styles = css`
-    form {
-      display: grid;
-      gap: var(--yen-space-3, 0.75rem);
-    }
-    .field {
-      display: grid;
-      gap: var(--yen-space-1, 0.25rem);
-    }
-    .field.checkbox {
-      grid-template-columns: auto 1fr;
-      align-items: center;
-    }
-    .field.checkbox label {
-      order: 2;
-    }
-    .error {
-      color: var(--yen-danger, currentColor);
-      margin: 0;
-    }
-    .note {
-      margin: 0;
-    }
-  `;
+  // The design system's controls (`web/_/ui/styles.js`), so a form built
+  // here looks as one built from `<yen-text-field>`s does.
+  static styles = [
+    base,
+    button,
+    control,
+    field,
+    spinner,
+    css`
+      :host {
+        display: block;
+      }
+      form {
+        display: grid;
+        gap: var(--yen-space-4);
+      }
+      .field.checkbox {
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        column-gap: var(--yen-space-3);
+        min-height: var(--yen-tap);
+      }
+      .field.checkbox .label {
+        order: 2;
+        font-size: var(--yen-text-md);
+        font-weight: var(--yen-weight-medium);
+      }
+      .field.checkbox .error {
+        grid-column: 1 / -1;
+        order: 3;
+      }
+      input[type="checkbox"] {
+        width: 1.5rem;
+        height: 1.5rem;
+        margin: 0;
+        accent-color: var(--yen-accent);
+      }
+      .note {
+        margin: 0;
+        padding: var(--yen-space-2) var(--yen-space-3);
+        border-radius: var(--yen-radius-2);
+        background: var(--yen-surface-2);
+        font-size: var(--yen-text-sm);
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+    `,
+  ];
 
   constructor() {
     super();
@@ -81,9 +109,13 @@ export class YenForm extends YenElement {
     if (!this.collection?.described) return html`<p role="status">Loading…</p>`;
     return html`<form @submit=${this.send} novalidate>
       ${this.shown().map(([name, f]) => this.control(name, f))}
-      ${this.errors[""] ? html`<p class="error" role="alert">${this.errors[""]}</p>` : nothing}
+      ${this.errors[""] ? html`<p class="error" role="alert"><yen-icon name="alert"></yen-icon>${this.errors[""]}</p>` : nothing}
       ${this.note ? html`<p class="note" role="status">${this.note}</p>` : nothing}
-      <button type="submit" ?disabled=${this.busy}>${this.submit}</button>
+      <div class="actions">
+        <button class="btn primary" type="submit" ?disabled=${this.busy} aria-busy=${this.busy ? "true" : "false"}>
+          ${this.busy ? html`<span class="spinner" aria-hidden="true"></span>` : nothing}${this.submit}
+        </button>
+      </div>
     </form>`;
   }
 
@@ -93,19 +125,31 @@ export class YenForm extends YenElement {
     const id = `field-${name}`;
     const error = this.errors[name];
     const invalid = error ? "true" : "false";
+    const described = error ? `${id}-error` : nothing;
     let input;
     if (kind === "textarea") {
-      input = html`<textarea id=${id} name=${name} .value=${value} aria-invalid=${invalid}></textarea>`;
+      input = html`<textarea class="control" id=${id} name=${name} .value=${value} aria-invalid=${invalid} aria-describedby=${described}></textarea>`;
     } else if (kind === "checkbox") {
-      input = html`<input id=${id} name=${name} type="checkbox" .checked=${value} />`;
+      input = html`<input id=${id} name=${name} type="checkbox" .checked=${value} aria-describedby=${described} />`;
     } else {
       const type = kind === "tags" ? "text" : kind;
-      input = html`<input id=${id} name=${name} type=${type} .value=${value} ?required=${f.required} aria-invalid=${invalid} />`;
+      input = html`<input
+        class="control"
+        id=${id}
+        name=${name}
+        type=${type}
+        .value=${value}
+        ?required=${f.required}
+        aria-invalid=${invalid}
+        aria-describedby=${described}
+      />`;
     }
     return html`<div class="field ${kind}">
-      <label for=${id}>${labelOf(name)}${f.required ? html`<span aria-hidden="true"> *</span>` : nothing}</label>
+      <label class="label" for=${id}>${labelOf(name)}${f.required ? html`<span class="required" aria-hidden="true"> *</span>` : nothing}</label>
       ${input}
-      ${error ? html`<p class="error" role="alert">${labelOf(name)} ${error}</p>` : nothing}
+      ${error
+        ? html`<p class="error" id=${`${id}-error`} role="alert"><yen-icon name="alert"></yen-icon>${labelOf(name)} ${error}</p>`
+        : nothing}
     </div>`;
   }
 

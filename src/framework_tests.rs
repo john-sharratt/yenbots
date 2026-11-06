@@ -1,8 +1,10 @@
 //! The framework's own tests (`tests/framework/*.test.js`), run in QuickJS:
 //! the modules of `web/_/framework/` that need no browser — records, the
 //! router, the API's client, error reports, the offline queue, forms'
-//! fields, the event streams and the SDK — imported as a page imports them,
-//! `/_/…` naming `web/_/…`.
+//! fields, the event streams and the SDK — the design system's arithmetic
+//! in `web/_/ui/` (calendars, charts, toasts, initials, what a picker
+//! takes), and the catalogue's reading of the tokens, imported as a page
+//! imports them, `/_/…` naming `web/_/…`.
 //!
 //! Each test file runs in a runtime of its own; every test it registers
 //! must pass, and a file that registers none fails.
@@ -103,7 +105,7 @@ fn the_frameworks_tests_pass() {
         .filter(|p| p.to_string_lossy().ends_with(".test.js"))
         .collect();
     files.sort();
-    assert!(files.len() >= 8, "the test files are found: {files:?}");
+    assert!(files.len() >= 10, "the test files are found: {files:?}");
     let mut failures = Vec::new();
     let mut passed = 0;
     for file in &files {

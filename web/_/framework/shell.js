@@ -10,8 +10,17 @@
 // page change runs as a view transition unless the device asks for less
 // motion.
 
-import { css, html, nothing } from "../vendor/lit-core.min.js";
+import { css, html, nothing } from "../vendor/lit-all.min.js";
 import { signal } from "../vendor/signals-core.mjs";
+import "../ui/components/avatar.js";
+import "../ui/components/button.js";
+import "../ui/components/empty.js";
+import "../ui/components/icon.js";
+import "../ui/components/icon-button.js";
+import "../ui/components/progress.js";
+import "../ui/components/toasts.js";
+// `base` is the app's address in here; the shared styles take another name.
+import { base as shared } from "../ui/styles.js";
 import { YenElement } from "./element.js";
 import { describe } from "./report.js";
 import { match, within } from "./router.js";
@@ -80,53 +89,90 @@ export function defineShell(sdk, { base, fault, report, restart }) {
   class Shell extends YenElement {
     static properties = { broken: { state: true } };
 
-    static styles = css`
-      :host {
-        display: block;
-        min-height: 100vh;
-      }
-      header {
-        display: flex;
-        align-items: center;
-        gap: var(--yen-space-3, 0.75rem);
-        padding: var(--yen-space-3, 0.75rem) var(--yen-space-4, 1rem);
-      }
-      header h1 {
-        flex: 1;
-        margin: 0;
-        font: inherit;
-        font-weight: 600;
-      }
-      .home {
-        color: inherit;
-        text-decoration: none;
-      }
-      .avatar {
-        width: 2rem;
-        height: 2rem;
-        border-radius: 50%;
-      }
-      main {
-        padding: 0 var(--yen-space-4, 1rem) var(--yen-space-6, 2rem);
-      }
-      .strip,
-      .panel {
-        margin: 0 var(--yen-space-4, 1rem) var(--yen-space-3, 0.75rem);
-        padding: var(--yen-space-3, 0.75rem);
-        border-radius: var(--yen-radius-2, 0.5rem);
-        background: var(--yen-surface-2, transparent);
-      }
-      .strip p,
-      .panel p {
-        margin: 0 0 var(--yen-space-2, 0.5rem);
-      }
-      .held {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--yen-space-2, 0.5rem);
-        align-items: center;
-      }
-    `;
+    static styles = [
+      shared,
+      css`
+        :host {
+          display: block;
+          min-height: 100vh;
+          min-height: 100dvh;
+        }
+        header {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          gap: var(--yen-space-2);
+          padding: max(var(--yen-space-2), env(safe-area-inset-top)) var(--yen-space-3) var(--yen-space-2);
+          background: color-mix(in srgb, var(--yen-bg) 86%, transparent);
+          backdrop-filter: saturate(1.4) blur(12px);
+          -webkit-backdrop-filter: saturate(1.4) blur(12px);
+          border-bottom: 1px solid color-mix(in srgb, var(--yen-line) 60%, transparent);
+        }
+        header h1 {
+          flex: 1;
+          margin: 0;
+          min-width: 0;
+          overflow-x: clip;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-family: var(--yen-font-heading);
+          font-size: var(--yen-text-lg);
+          font-weight: var(--yen-weight-semibold);
+          line-height: var(--yen-leading-tight);
+        }
+        yen-avatar {
+          margin-right: var(--yen-space-1);
+        }
+        main {
+          padding: var(--yen-space-3) var(--yen-space-4) calc(var(--yen-space-8) + env(safe-area-inset-bottom));
+        }
+        .strip {
+          display: grid;
+          gap: var(--yen-space-2);
+          max-width: 44rem;
+          margin: var(--yen-space-3) auto 0;
+          padding: 0 var(--yen-space-4);
+        }
+        .note {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: var(--yen-space-2) var(--yen-space-3);
+          padding: var(--yen-space-2) var(--yen-space-3);
+          border-radius: var(--yen-radius-2);
+          background: var(--yen-surface-2);
+          color: var(--yen-ink);
+          font-size: var(--yen-text-sm);
+        }
+        .note.held {
+          background: var(--yen-warning-soft);
+        }
+        .note.fault {
+          background: var(--yen-danger-soft);
+        }
+        .note .words {
+          flex: 1 1 14rem;
+        }
+        .note yen-icon {
+          color: var(--yen-ink-2);
+        }
+        .answers {
+          display: flex;
+          gap: var(--yen-space-2);
+        }
+        .waiting {
+          display: grid;
+          place-items: center;
+          padding: var(--yen-space-8) 0;
+        }
+        .wrong {
+          max-width: 32rem;
+          margin: var(--yen-space-6) auto;
+        }
+      `,
+    ];
 
     constructor() {
       super();
@@ -145,72 +191,87 @@ export function defineShell(sdk, { base, fault, report, restart }) {
 
     render() {
       const me = sdk.me.value;
-      const picture = me?.account?.picture;
+      const account = me?.signed_in ? me.account : null;
       return html`<header>
-          <a class="home" href="/" aria-label="All the apps">←</a>
+          <yen-icon-button icon="home" label="All the apps" href="/"></yen-icon-button>
           <h1>${sdk.title.value}</h1>
-          ${picture ? html`<img class="avatar" src=${picture} alt=${me.account.name} />` : nothing}
+          ${account ? html`<yen-avatar size="small" name=${account.name} src=${account.picture ?? nothing}></yen-avatar>` : nothing}
         </header>
         ${this.strip()}
-        <main>${this.body(me)}</main>`;
+        <main>${this.body(me)}</main>
+        <yen-toasts></yen-toasts>`;
+    }
+
+    note(icon, words, { kind = "", role = "status", answers = nothing } = {}) {
+      return html`<div class="note ${kind}" role=${role}>
+        <yen-icon name=${icon}></yen-icon><span class="words">${words}</span>${answers}
+      </div>`;
     }
 
     strip() {
       const waiting = sdk.queue.writes.value.length;
       const held = sdk.queue.held.value;
       const lines = [];
-      if (!online.value) lines.push(html`<p>You're offline. What's here is what was last loaded.</p>`);
+      if (!online.value) lines.push(this.note("offline", "You're offline. What's here is what was last loaded."));
       if (waiting > 0) {
         const n = waiting === 1 ? "1 change is" : `${waiting} changes are`;
-        lines.push(html`<p role="status">${n} waiting to be sent.</p>`);
+        lines.push(this.note("clock", `${n} waiting to be sent.`));
       }
-      if (sdk.queue.fault.value) lines.push(html`<p>This browser can't keep changes made offline.</p>`);
+      if (sdk.queue.fault.value) {
+        lines.push(this.note("alert", "This browser can't keep changes made offline.", { kind: "fault", role: "alert" }));
+      }
       for (const item of held) {
-        lines.push(html`<div class="held" role="alert">
-          <span>${what(item.write)} couldn't be saved: ${item.why.detail}</span>
+        const answers = html`<span class="answers">
           ${sdk.queue.keepable(item)
-            ? html`<button @click=${() => sdk.queue.resend(item).catch((e) => this.failed(e))}>Keep mine</button>`
+            ? html`<yen-button size="small" variant="secondary" @click=${() => sdk.queue.resend(item).catch((e) => this.failed(e))}
+                >Keep mine</yen-button
+              >`
             : nothing}
-          <button @click=${() => sdk.queue.drop(item)}>Drop it</button>
-        </div>`);
+          <yen-button size="small" variant="ghost" @click=${() => sdk.queue.drop(item)}>Drop it</yen-button>
+        </span>`;
+        lines.push(this.note("alert", `${what(item.write)} couldn't be saved: ${item.why.detail}`, { kind: "held", role: "alert", answers }));
       }
       return lines.length ? html`<div class="strip">${lines}</div>` : nothing;
+    }
+
+    loading() {
+      return html`<div class="waiting"><yen-progress kind="spinner" label="Loading"></yen-progress></div>`;
     }
 
     body(me) {
       const broken = this.broken ?? fault.value;
       if (broken) {
-        return html`<div class="panel" role="alert">
-          <p>Something went wrong: ${broken}</p>
-          <button @click=${() => this.retry()}>Try again</button>
-        </div>`;
+        return html`<yen-empty class="wrong" icon="alert" heading="Something went wrong" role="alert">
+          ${broken}
+          <yen-button slot="action" icon="refresh" @click=${() => this.retry()}>Try again</yen-button>
+        </yen-empty>`;
       }
-      if (!me) return html`<p role="status">Loading…</p>`;
+      if (!me) return this.loading();
       if (!me.signed_in) {
         const next = encodeURIComponent(location.href);
-        return html`<div class="panel">
-          <p>Sign in to use ${sdk.title.value || "this app"}.</p>
-          <a href="/auth/login?next=${next}">Sign in with Google</a>
-        </div>`;
+        return html`<yen-empty icon="lock" heading=${`Sign in to use ${sdk.title.value || "this app"}`}>
+          Yen Bots keeps the family's apps for the family.
+          <yen-button slot="action" href=${`/auth/login?next=${next}`}>Sign in with Google</yen-button>
+        </yen-empty>`;
       }
-      if (me.account.status === "blocked") return html`<div class="panel"><p>This account can't use Yen Bots.</p></div>`;
+      if (me.account.status === "blocked") {
+        return html`<yen-empty icon="lock" heading="This account can't use Yen Bots"></yen-empty>`;
+      }
       if (me.account.status !== "active") {
-        return html`<div class="panel"><p>Yen has been told you're here, and will let you in soon.</p></div>`;
+        return html`<yen-empty icon="clock" heading="Nearly there">Yen has been told you're here, and will let you in soon.</yen-empty>`;
       }
       if (sdk.closed.value) {
-        return html`<div class="panel">
-          <p>This app isn't one you can open.</p>
-          <a href="/">Back to all the apps</a>
-        </div>`;
+        return html`<yen-empty icon="lock" heading="This app isn't one you can open">
+          <yen-button slot="action" variant="secondary" href="/">Back to all the apps</yen-button>
+        </yen-empty>`;
       }
       // The app's own modules may not have run yet.
-      if (sdk.routes.value.length === 0) return html`<p role="status">Loading…</p>`;
+      if (sdk.routes.value.length === 0) return this.loading();
       const m = match(sdk.routes.value, path.value);
       if (!m) {
-        return html`<div class="panel">
-          <p>There's no such page here.</p>
-          <a href="./">Back to the start</a>
-        </div>`;
+        return html`<yen-empty icon="search" heading="There's no such page here">
+          <yen-button slot="action" variant="secondary" href="./">Back to the start</yen-button>
+        </yen-empty>`;
       }
       return this.page(m);
     }

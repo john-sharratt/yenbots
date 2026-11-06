@@ -7,6 +7,9 @@ use std::collections::BTreeMap;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use super::theme::tokens::Tokens;
+use super::theme::Theme;
+
 /// Whether an app is on the landing page yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -127,7 +130,7 @@ fn one() -> u32 {
 }
 
 /// The manifest's fields this part of the platform reads; the rest of the
-/// manifest (tile, schedules, theme, …) is read where it is used.
+/// manifest (tile, schedules, …) is read where it is used.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Manifest {
     pub id: String,
@@ -138,6 +141,9 @@ pub struct Manifest {
     pub status: Status,
     #[serde(default)]
     pub collections: BTreeMap<String, Collection>,
+    /// The app's own look (§8.5), checked to read in both modes.
+    #[serde(default)]
+    pub theme: Theme,
 }
 
 /// The names the framework gives every record beside its fields
@@ -204,6 +210,7 @@ impl Manifest {
                 }
             }
         }
+        m.theme.check(Tokens::platform())?;
         Ok(m)
     }
 }
@@ -254,6 +261,28 @@ collections:
         assert!(changed("serves: {", "serves: { typo: 1,").contains("parse"));
         let reserved = changed("serves: {", "version: {");
         assert!(reserved.contains("`version` is the record's own"));
+        let pale = bad(
+            &format!("{RECIPES}theme:\n  accent: \"#f9a8c0\"\n"),
+            "recipes",
+        );
+        assert!(
+            pale.starts_with("theme: the accent #f9a8c0 is 1.73:1"),
+            "{pale}"
+        );
+    }
+
+    #[test]
+    fn a_manifest_reads_its_theme() {
+        let m = Manifest::parse(
+            &format!("{RECIPES}theme:\n  accent: \"#b03a5b\"\n  radius: round\n"),
+            "recipes",
+        )
+        .unwrap();
+        assert_eq!(m.theme.accent.unwrap().to_string(), "#b03a5b");
+        assert_eq!(
+            Manifest::parse(RECIPES, "recipes").unwrap().theme,
+            Theme::default()
+        );
     }
 
     #[test]

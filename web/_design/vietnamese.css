@@ -1,0 +1,76 @@
+/* The Vietnamese test page's own layout (§8.7). */
+
+/* A line cut short as the components cut one: sideways only, with an ellipsis. */
+.clip {
+  overflow-x: clip;
+  text-overflow: ellipsis;
+  margin-bottom: var(--yen-space-2);
+  padding: 0 var(--yen-space-3);
+  border: 1px dashed var(--yen-line-strong);
+  border-radius: var(--yen-radius-1);
+  font-size: var(--yen-text-3xl);
+  line-height: var(--yen-leading-tight);
+  white-space: nowrap;
+}
+
+/* Two lines of capitals at the tightest leading: the marks clear the line above. */
+.stack {
+  max-width: 14ch;
+  font-size: var(--yen-text-3xl);
+  line-height: var(--yen-leading-tight);
+}
+
+.clip.display,
+.stack.display,
+.sizes.display,
+.vi-grid.display {
+  font-family: var(--yen-font-display);
+}
+
+.clip.text,
+.vi-grid.text {
+  font-family: var(--yen-font-text);
+}
+
+.sizes p {
+  margin: 0 0 var(--yen-space-2);
+  line-height: var(--yen-leading-tight);
+}
+
+.s-3xl { font-size: var(--yen-text-3xl); }
+.s-2xl { font-size: var(--yen-text-2xl); }
+.s-xl { font-size: var(--yen-text-xl); }
+.s-lg { font-size: var(--yen-text-lg); }
+.s-md { font-size: var(--yen-text-md); }
+.s-sm { font-size: var(--yen-text-sm); }
+.s-xs { font-size: var(--yen-text-xs); }
+
+.typing {
+  display: grid;
+  gap: var(--yen-space-4);
+  max-width: 32rem;
+}
+
+.vi-grid {
+  display: grid;
+  gap: var(--yen-space-1);
+  margin-bottom: var(--yen-space-4);
+  font-size: var(--yen-text-2xl);
+  line-height: var(--yen-leading-tight);
+}
+
+.vi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--yen-space-1);
+}
+
+.vi-row span {
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  padding: var(--yen-space-1);
+  border-radius: var(--yen-radius-1);
+  background: var(--yen-surface);
+  border: 1px solid var(--yen-line);
+}

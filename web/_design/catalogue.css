@@ -1,0 +1,269 @@
+/*
+ * The catalogue's own layout (§8.5): its bar of choices, its sections, and
+ * the frames each section is shown in — light and dark side by side, at a
+ * phone's width or a desktop's. Everything inside a frame is the design
+ * system's own.
+ */
+
+yen-catalogue {
+  display: block;
+}
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--yen-space-2) var(--yen-space-4);
+  padding: var(--yen-space-3) var(--yen-space-4);
+  background: color-mix(in srgb, var(--yen-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--yen-line);
+}
+
+.bar h1 {
+  flex: 1 1 14rem;
+  margin: 0;
+  font-size: var(--yen-text-xl);
+}
+
+.bar h1 small {
+  display: block;
+  font-family: var(--yen-font-text);
+  font-weight: var(--yen-weight-regular);
+}
+
+.choice {
+  display: inline-flex;
+  padding: var(--yen-space-1);
+  gap: var(--yen-space-1);
+  border-radius: var(--yen-radius-button);
+  background: var(--yen-surface-2);
+}
+
+.choice button {
+  min-height: 2.25rem;
+  padding: 0 var(--yen-space-3);
+  border: none;
+  border-radius: var(--yen-radius-button);
+  background: transparent;
+  color: var(--yen-ink-2);
+  font: inherit;
+  font-size: var(--yen-text-sm);
+  font-weight: var(--yen-weight-semibold);
+  cursor: pointer;
+}
+
+.choice button[aria-pressed="true"] {
+  background: var(--yen-surface);
+  color: var(--yen-ink);
+  box-shadow: var(--yen-shadow-1);
+}
+
+nav.sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--yen-space-1) var(--yen-space-3);
+  padding: var(--yen-space-3) var(--yen-space-4) 0;
+  font-size: var(--yen-text-sm);
+}
+
+section.part {
+  padding: var(--yen-space-6) var(--yen-space-4) 0;
+  scroll-margin-top: 6rem;
+}
+
+section.part > h2 {
+  margin-bottom: var(--yen-space-1);
+}
+
+section.part > p {
+  color: var(--yen-ink-2);
+}
+
+.frames {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--yen-space-4);
+  align-items: start;
+}
+
+.frames.phone {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), min(100%, 24.375rem)));
+}
+
+.frame {
+  min-width: 0;
+  padding: var(--yen-space-5) var(--yen-space-4);
+  border: 1px solid var(--yen-line);
+  border-radius: var(--yen-radius-3);
+  background: var(--yen-bg);
+  color: var(--yen-ink);
+  font-family: var(--yen-font-text);
+}
+
+.frame > .scheme {
+  margin: 0 0 var(--yen-space-4);
+  font-size: var(--yen-text-xs);
+  font-weight: var(--yen-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--yen-ink-2);
+}
+
+.demo {
+  display: grid;
+  gap: var(--yen-space-3);
+  margin-bottom: var(--yen-space-5);
+}
+
+.demo > h3 {
+  margin: 0;
+  font-family: var(--yen-font-text);
+  font-size: var(--yen-text-sm);
+  font-weight: var(--yen-weight-semibold);
+  color: var(--yen-ink-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--yen-space-3);
+}
+
+/* A state fills its place as a page would give it one; one in a row of states is as wide as it needs. */
+.state {
+  display: grid;
+  align-content: start;
+  gap: var(--yen-space-1);
+  max-width: 28rem;
+}
+
+.row > .state {
+  justify-items: start;
+}
+
+.state > span {
+  font-size: var(--yen-text-xs);
+  color: var(--yen-ink-2);
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--yen-space-3);
+}
+
+.swatch {
+  display: grid;
+  gap: var(--yen-space-1);
+  font-size: var(--yen-text-xs);
+}
+
+.swatch .chip {
+  height: 3rem;
+  border-radius: var(--yen-radius-2);
+  border: 1px solid var(--yen-line);
+}
+
+.swatch code,
+.token code {
+  font-family: var(--yen-font-mono);
+  font-size: var(--yen-text-xs);
+  color: var(--yen-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.specimen {
+  display: grid;
+  gap: var(--yen-space-1);
+  padding: var(--yen-space-2) 0;
+  border-bottom: 1px solid var(--yen-line);
+}
+
+.specimen:last-child {
+  border-bottom: none;
+}
+
+.measure-bar {
+  height: 0.75rem;
+  border-radius: var(--yen-radius-pill);
+  background: var(--yen-accent);
+}
+
+.token {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: var(--yen-space-3);
+}
+
+.box {
+  display: grid;
+  place-items: center;
+  height: 4.5rem;
+  background: var(--yen-surface);
+  border: 1px solid var(--yen-line);
+  font-size: var(--yen-text-xs);
+  color: var(--yen-ink-2);
+}
+
+.mover {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--yen-radius-2);
+  background: var(--yen-accent);
+}
+
+.track {
+  padding: var(--yen-space-2);
+  border-radius: var(--yen-radius-2);
+  background: var(--yen-surface-2);
+  cursor: pointer;
+}
+
+.track.moved .mover {
+  translate: calc(100% * 4) 0;
+}
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: var(--yen-space-2);
+}
+
+.icons figure {
+  display: grid;
+  justify-items: center;
+  gap: var(--yen-space-1);
+  margin: 0;
+  padding: var(--yen-space-3) var(--yen-space-1);
+  border-radius: var(--yen-radius-2);
+  background: var(--yen-surface);
+  border: 1px solid var(--yen-line);
+  font-size: var(--yen-text-xs);
+  color: var(--yen-ink-2);
+}
+
+.icons yen-icon {
+  --yen-icon-size: 1.5rem;
+  color: var(--yen-ink);
+}
+
+.art {
+  aspect-ratio: 4 / 3;
+  background: linear-gradient(135deg, var(--yen-coral), var(--yen-rose) 55%, var(--yen-violet));
+}
+
+.vi {
+  font-size: var(--yen-text-lg);
+}
+
+footer.end {
+  padding: var(--yen-space-7) var(--yen-space-4);
+  color: var(--yen-ink-2);
+}

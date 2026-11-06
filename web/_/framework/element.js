@@ -6,7 +6,7 @@
 // shell shows in its "something went wrong" panel, and is thrown on for the
 // error report; the component still re-renders on the next change.
 
-import { LitElement } from "../vendor/lit-core.min.js";
+import { LitElement } from "../vendor/lit-all.min.js";
 import { effect } from "../vendor/signals-core.mjs";
 
 export class YenElement extends LitElement {
