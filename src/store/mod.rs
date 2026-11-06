@@ -5,6 +5,7 @@
 //! One connection, behind a mutex: the site's writes are a family's, and
 //! SQLite in WAL mode serves them from one writer with room to spare.
 
+pub mod backups;
 pub mod migrations;
 
 use std::path::Path;

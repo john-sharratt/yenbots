@@ -139,7 +139,8 @@ mod tests {
     fn cfg(registration: &str) -> Config {
         Config::from_yaml(
             &format!(
-                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nregistration: {registration}\n"
+                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nregistration: {registration}\n\
+                 bus: {{url: u, key_file: k}}\n"
             ),
             Path::new("."),
         )

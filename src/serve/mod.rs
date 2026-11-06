@@ -5,6 +5,7 @@
 //! | `GET /` | the landing page (`web/index.html`) |
 //! | `GET /_/…` | the platform's web files, embedded ([`web`]) |
 //! | `GET /api/v1/me` | who the caller is, registering their account ([`me`]) |
+//! | `GET /api/v1/events/_reload` | an event each time the site serves a new commit ([`reload`]) |
 //! | `GET /v1/status` | the site's health ([`status`]) |
 //! | `GET /v1/logs`, `/v1/logs/sources` | the site as a log source |
 //!
@@ -12,6 +13,7 @@
 //! live without a release; these are the same files, built in.
 
 pub mod me;
+pub mod reload;
 pub mod status;
 pub mod web;
 
@@ -28,6 +30,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/", get(web::landing))
         .route("/_/*path", get(web::platform_file))
         .route("/api/v1/me", get(me::me))
+        .route("/api/v1/events/_reload", get(reload::reload))
         .route("/v1/status", get(status::status))
         .route("/v1/logs", get(api::logs))
         .route("/v1/logs/sources", get(api::sources))
@@ -37,15 +40,18 @@ pub fn router(app: Arc<App>) -> Router {
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::time::Duration;
 
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
+    use futures_util::StreamExt;
     use serde_json::Value;
     use tower::ServiceExt;
 
     use super::*;
     use crate::config::Config;
     use crate::logs::{Level, Line, Logs};
+    use crate::publish::Reloads;
     use crate::store::Store;
     use crate::version::BuildInfo;
 
@@ -53,11 +59,12 @@ mod tests {
         let store = Arc::new(Store::in_memory().unwrap());
         Arc::new(App {
             cfg: Config::from_yaml(
-                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\n",
+                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nbus: {url: u, key_file: k}\n",
                 Path::new("."),
             )
             .unwrap(),
             logs: Logs::new(store.clone()),
+            reloads: Reloads::new(),
             store,
             build: BuildInfo::this(),
             started_ms: 1,
@@ -139,6 +146,30 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
         assert_eq!(body["store"]["schema"], 1);
+    }
+
+    /// **An open page hears each move of the live checkout.**
+    #[tokio::test]
+    async fn an_open_page_hears_a_move() {
+        let app = app();
+        let res = router(app.clone())
+            .oneshot(
+                Request::get("/api/v1/events/_reload")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers()["content-type"], "text/event-stream");
+        app.reloads.moved("4f1c");
+        let mut body = res.into_body().into_data_stream();
+        let chunk = tokio::time::timeout(Duration::from_secs(5), body.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(chunk, "event: reload\ndata: 4f1c\n\n");
     }
 
     #[tokio::test]

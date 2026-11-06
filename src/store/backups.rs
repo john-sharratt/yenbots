@@ -1,0 +1,150 @@
+//! Nightly backups (`candle/docs/yenbot_app_host.md` §7.4): the store written
+//! whole with `VACUUM INTO` to `<data_dir>/backups/yenbot-YYYY-MM-DD.db`, one
+//! a day, the newest [`KEEP`] kept. `VACUUM INTO` writes a consistent copy
+//! while the site keeps serving.
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+
+use super::Store;
+use crate::accounts::now_ms;
+use crate::logs::rfc3339;
+
+/// How many backups are kept.
+pub const KEEP: usize = 14;
+
+/// How often the backup job looks whether today's has been written.
+const CHECK: Duration = Duration::from_secs(15 * 60);
+
+/// The backup file for the day `at_ms` falls on (UTC).
+pub fn file_for(dir: &Path, at_ms: i64) -> PathBuf {
+    dir.join(format!("yenbot-{}.db", &rfc3339(at_ms)[..10]))
+}
+
+/// Write today's backup into `dir` unless it exists, then drop all but the
+/// newest [`KEEP`]. Answers the file written, if one was.
+pub fn back_up(store: &Store, dir: &Path, at_ms: i64) -> Result<Option<PathBuf>> {
+    std::fs::create_dir_all(dir).with_context(|| format!("making {}", dir.display()))?;
+    let file = file_for(dir, at_ms);
+    let written = if file.exists() {
+        None
+    } else {
+        // Written beside its name and renamed into it, so a backup cut short
+        // is never taken for the day's: the next look writes it again.
+        let part = file.with_extension("db.part");
+        if part.exists() {
+            std::fs::remove_file(&part).with_context(|| format!("removing {}", part.display()))?;
+        }
+        store
+            .conn()
+            .execute("VACUUM INTO ?1", [part.to_string_lossy().to_string()])
+            .with_context(|| format!("writing {}", part.display()))?;
+        std::fs::rename(&part, &file).with_context(|| format!("naming {}", file.display()))?;
+        tracing::info!(file = %file.display(), "store: backed up");
+        Some(file)
+    };
+    let mut held: Vec<PathBuf> = std::fs::read_dir(dir)?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("yenbot-") && n.ends_with(".db"))
+        })
+        .collect();
+    held.sort();
+    let surplus = held.len().saturating_sub(KEEP);
+    for old in held.into_iter().take(surplus) {
+        std::fs::remove_file(&old).with_context(|| format!("removing {}", old.display()))?;
+    }
+    Ok(written)
+}
+
+/// The backup job: today's backup on start, and again whenever the day turns.
+pub fn start(store: Arc<Store>, dir: PathBuf) {
+    tokio::spawn(async move {
+        loop {
+            let (store, dir) = (store.clone(), dir.clone());
+            let done = tokio::task::spawn_blocking(move || back_up(&store, &dir, now_ms())).await;
+            match done {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => tracing::error!("store: the backup failed: {e:#}"),
+                Err(e) => tracing::error!("store: the backup panicked: {e}"),
+            }
+            tokio::time::sleep(CHECK).await;
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DAY: i64 = 86_400_000;
+
+    #[test]
+    fn a_backup_is_named_by_its_day() {
+        assert_eq!(
+            file_for(Path::new("b"), 1_793_959_331_042),
+            Path::new("b").join("yenbot-2026-11-06.db")
+        );
+    }
+
+    /// **One backup a day, a whole copy of the store, the newest fourteen
+    /// kept.**
+    #[test]
+    fn one_backup_a_day_and_the_newest_fourteen_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&dir.path().join("yenbot.db")).unwrap();
+        store
+            .conn()
+            .execute(
+                "INSERT INTO accounts (id, provider, email, name, status, created_ms, seen_ms) \
+                 VALUES ('1', 'google', 'a@b.c', 'A', 'active', 0, 0)",
+                [],
+            )
+            .unwrap();
+        let backups = dir.path().join("backups");
+        let first = back_up(&store, &backups, 0).unwrap().unwrap();
+        assert_eq!(
+            back_up(&store, &backups, 1_000).unwrap(),
+            None,
+            "once a day"
+        );
+        let copy = Store::open(&first).unwrap();
+        let n: u32 = copy
+            .conn()
+            .query_row("SELECT COUNT(*) FROM accounts", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 1, "the copy holds the store's rows");
+        drop(copy);
+        for day in 1..20 {
+            back_up(&store, &backups, day * DAY).unwrap();
+        }
+        let held = std::fs::read_dir(&backups).unwrap().count();
+        assert_eq!(held, KEEP);
+        assert!(!file_for(&backups, 0).exists(), "the oldest went first");
+        assert!(file_for(&backups, 19 * DAY).exists());
+    }
+
+    /// **A backup cut short is written again**, and is never one of the
+    /// fourteen.
+    #[test]
+    fn a_backup_cut_short_is_written_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&dir.path().join("yenbot.db")).unwrap();
+        let backups = dir.path().join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        let part = file_for(&backups, 0).with_extension("db.part");
+        std::fs::write(&part, b"cut short").unwrap();
+        assert_eq!(
+            back_up(&store, &backups, 0).unwrap(),
+            Some(file_for(&backups, 0))
+        );
+        assert!(!part.exists());
+        Store::open(&file_for(&backups, 0)).unwrap();
+    }
+}

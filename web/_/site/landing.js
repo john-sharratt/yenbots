@@ -1,4 +1,7 @@
-// The landing page: who the visitor is, and what they can do next.
+// The landing page: who the visitor is, and what they can do next. It
+// reloads itself whenever the site starts serving a new commit.
+new EventSource("/api/v1/events/_reload").addEventListener("reload", () => location.reload());
+
 const who = document.getElementById("who");
 const res = await fetch("/api/v1/me", { headers: { "X-Yen-App": "_site" } });
 const me = await res.json();

@@ -9,7 +9,16 @@
 | Listens | `127.0.0.1:8096` — loopback only; the gateway forwards to it |
 | Config | `D:\yenbot\yenbot.yaml` (from this repository's `yenbot.yaml`) |
 | Store | `D:\yenbot\data\yenbot.db` — SQLite, schema migrated on start |
-| Live files | `D:\yenbot\live` — a checkout of `origin/main`, never edited by hand |
+| Live files | `D:\yenbot\live` — a checkout of `origin/main`, never edited by hand; cloned with `git clone -c core.autocrlf=false git@github.com:john-sharratt/yenbots.git D:\yenbot\live` so it serves what was committed, byte for byte |
+| Bus key | `D:\yenbot\secrets\gateway.key` — yenbot's service key on the gateway (`cluster.service_keys` in `web/web.yaml`), 64 hex digits |
+| Backups | `D:\yenbot\data\backups\yenbot-YYYY-MM-DD.db`, one a day, the newest 14 |
+
+## Publishing
+
+Every push to `main` is announced on the gateway's bus as `repo/yenbot`; the site
+fetches and fast-forwards the live checkout at once, and every minute besides. A history
+rewrite on origin is refused and logged: the site keeps serving what it had. Each move
+reloads the open pages.
 
 ## Releasing
 

@@ -9,3 +9,8 @@ admins:
   - johnathan.sharratt@gmail.com
 # A new account waits for an admin's approval.
 registration: approve
+# The gateway's bus on this machine: every push to the repository arrives on
+# `repo/yenbot`, and the live checkout is fast-forwarded (docs/running.md).
+bus:
+  url: "ws://127.0.0.1/gateway/events"
+  key_file: "D:/yenbot/secrets/gateway.key"

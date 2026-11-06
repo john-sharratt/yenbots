@@ -38,6 +38,19 @@ pub struct Config {
     pub admins: Vec<String>,
     #[serde(default)]
     pub registration: Registration,
+    /// The gateway's bus, where the site hears of every push to its
+    /// repository (`repo/yenbot`) and fast-forwards its live checkout.
+    pub bus: Bus,
+}
+
+/// The gateway's bus: its WebSocket, and yenbot's service key for it.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Bus {
+    /// `ws://127.0.0.1/gateway/events` on BlackWorld.
+    pub url: String,
+    /// The service key's file, 64 hex digits, resolved against the config.
+    pub key_file: PathBuf,
 }
 
 fn d_site_name() -> String {
@@ -60,7 +73,7 @@ impl Config {
 
     pub fn from_yaml(text: &str, base: &Path) -> Result<Config> {
         let mut cfg: Config = serde_yaml::from_str(text).context("parsing YAML")?;
-        for dir in [&mut cfg.data_dir, &mut cfg.live_dir] {
+        for dir in [&mut cfg.data_dir, &mut cfg.live_dir, &mut cfg.bus.key_file] {
             if dir.is_relative() {
                 *dir = base.join(&*dir);
             }
@@ -97,7 +110,8 @@ impl Config {
 mod tests {
     use super::*;
 
-    const OK: &str = "data_dir: data\nlive_dir: live\nadmins: [Yen@Example.com]\n";
+    const OK: &str = "data_dir: data\nlive_dir: live\nadmins: [Yen@Example.com]\n\
+                      bus: {url: \"ws://127.0.0.1/gateway/events\", key_file: secrets/gateway.key}\n";
 
     #[test]
     fn a_config_resolves_its_directories_and_defaults() {
@@ -110,6 +124,10 @@ mod tests {
             Path::new("/srv/yenbot").join("data").join("yenbot.db")
         );
         assert_eq!(c.registration, Registration::Approve);
+        assert_eq!(
+            c.bus.key_file,
+            Path::new("/srv/yenbot").join("secrets/gateway.key")
+        );
         assert!(c.is_admin("yen@example.com "));
         assert!(!c.is_admin("someone@example.com"));
         assert!(!c.is_admin(""));
@@ -126,13 +144,15 @@ mod tests {
 
     #[test]
     fn a_config_that_cannot_be_run_is_refused() {
+        let bus = "bus: {url: u, key_file: k}\n";
         for bad in [
-            "data_dir: d\nlive_dir: l\n",
-            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\nbind: \"0.0.0.0:8096\"\n",
-            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntypo: 1\n",
-            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\nregistration: maybe\n",
+            format!("data_dir: d\nlive_dir: l\n{bus}"),
+            format!("data_dir: d\nlive_dir: l\nadmins: [a@b.c]\nbind: \"0.0.0.0:8096\"\n{bus}"),
+            format!("data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntypo: 1\n{bus}"),
+            format!("data_dir: d\nlive_dir: l\nadmins: [a@b.c]\nregistration: maybe\n{bus}"),
+            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\n".to_string(),
         ] {
-            assert!(Config::from_yaml(bad, Path::new(".")).is_err(), "{bad}");
+            assert!(Config::from_yaml(&bad, Path::new(".")).is_err(), "{bad}");
         }
     }
 }

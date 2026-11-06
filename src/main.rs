@@ -11,6 +11,7 @@ mod accounts;
 mod app;
 mod config;
 mod logs;
+mod publish;
 mod serve;
 mod store;
 mod version;
@@ -28,7 +29,8 @@ use app::App;
 use config::Config;
 use logs::layer::StoreLayer;
 use logs::Logs;
-use store::Store;
+use publish::Reloads;
+use store::{backups, Store};
 use version::{asks_for_build, BuildInfo};
 
 /// The whole line keep's trial waits for on stderr before it keeps a new
@@ -60,12 +62,25 @@ async fn main() -> Result<()> {
         .with(StoreLayer::new(logs.clone()))
         .init();
 
+    backups::start(store.clone(), cfg.data_dir.join("backups"));
+    let key = std::fs::read_to_string(&cfg.bus.key_file)
+        .with_context(|| format!("reading the bus key {}", cfg.bus.key_file.display()))?
+        .trim()
+        .to_string();
+    let reloads = Reloads::new();
+    publish::start(
+        cfg.live_dir.clone(),
+        cfg.bus.url.clone(),
+        key,
+        reloads.clone(),
+    );
     let build = BuildInfo::this();
     let bind = cfg.bind;
     let app = Arc::new(App {
         cfg,
         store,
         logs,
+        reloads,
         build: build.clone(),
         started_ms: accounts::now_ms(),
     });
