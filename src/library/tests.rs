@@ -109,7 +109,10 @@ fn the_library_is_found_by_kind_tag_and_colour() {
 fn a_picture_is_sized_once_and_its_cache_goes_with_it() {
     let (dir, lib) = library();
     let bell = lib.get("tiles/bell-coral").unwrap();
-    let cached = dir.path().join("cache").join(&bell.digest);
+    let cached = dir.path().join("cache").join(cache_name(&bell.digest));
+    assert_eq!(cache_name("ab12"), "ab12-q82");
+    // A cache of another encoding is not this one's, and is swept.
+    std::fs::create_dir_all(dir.path().join("cache").join(&bell.digest)).unwrap();
     // A colour written into the cache by hand is what the next load reads.
     std::fs::write(cached.join("colour"), "#010203").unwrap();
     lib.reload();

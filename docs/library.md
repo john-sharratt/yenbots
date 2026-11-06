@@ -30,7 +30,8 @@ has it too.
 | `stickers` | Small cut-out objects and badges, on transparency | 1024×1024, background removed | 256, 128 |
 
 The image model draws at most 1024 a side, so a picture is committed as it
-was drawn and the site sizes it down (lossless WebP, transparency kept); a
+was drawn and the site sizes it down (WebP at quality 82, transparency kept
+exactly); a
 picture of another shape is cut to its kind's shape from the centre.
 
 ## The house style

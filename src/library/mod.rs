@@ -4,8 +4,9 @@
 //!
 //! On load, and each time the checkout moves, every picture is sized to its
 //! kind's sizes ([`sizing`]) and its dominant colour read ([`dominant`]);
-//! the results are cached under `<data_dir>/library/<digest>/`, keyed by the
-//! picture's content, so a picture is sized once whatever moves around it.
+//! the results are cached under `<data_dir>/library/<digest>-q<quality>/`,
+//! keyed by the picture's content and its encoding, so a picture is sized
+//! once whatever moves around it.
 //! A catalogue that does not parse leaves the library as it was, and a line
 //! whose picture is missing or unreadable is left out; the gate refuses
 //! both before they land ([`check`]).
@@ -28,7 +29,7 @@ use crate::apps::theme::colour::Colour;
 use catalogue::Entry;
 use dominant::{dominant, nearest};
 use kind::Kind;
-use sizing::{decode, sized, webp};
+use sizing::{decode, sized, webp, QUALITY};
 
 /// One picture as it is served.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +117,12 @@ pub struct Library {
     pictures: Arc<RwLock<Arc<BTreeMap<String, Picture>>>>,
 }
 
+/// The cache folder of the picture `digest`: named for the encoding too, so a
+/// change of [`QUALITY`] sizes every picture again.
+fn cache_name(digest: &str) -> String {
+    format!("{digest}-q{}", QUALITY as u32)
+}
+
 /// The cached file of size `w`×`h`.
 fn size_file(dir: &Path, w: u32, h: u32) -> PathBuf {
     dir.join(format!("{w}x{h}.webp"))
@@ -191,7 +198,7 @@ impl Library {
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect();
-        let dir = self.cache.join(&digest);
+        let dir = self.cache.join(cache_name(&digest));
         let colour_file = dir.join("colour");
         let sizes = entry.kind.sizes();
         let cached = std::fs::read_to_string(&colour_file)
@@ -221,13 +228,13 @@ impl Library {
 
     /// Remove the cache of every picture no longer in the library.
     fn sweep(&self, pictures: &BTreeMap<String, Picture>) {
-        let kept: BTreeSet<&str> = pictures.values().map(|p| p.digest.as_str()).collect();
+        let kept: BTreeSet<String> = pictures.values().map(|p| cache_name(&p.digest)).collect();
         let Ok(dirs) = std::fs::read_dir(&self.cache) else {
             return;
         };
         for d in dirs.flatten() {
             let name = d.file_name().to_string_lossy().to_string();
-            if d.path().is_dir() && !kept.contains(name.as_str()) {
+            if d.path().is_dir() && !kept.contains(&name) {
                 let _ = std::fs::remove_dir_all(d.path());
             }
         }
@@ -268,7 +275,7 @@ impl Library {
         let width: u32 = width.parse().ok()?;
         let p = self.get(&format!("{kind}/{id}"))?;
         let &(w, h) = p.entry.kind.sizes().iter().find(|s| s.0 == width)?;
-        Some(size_file(&self.cache.join(&p.digest), w, h))
+        Some(size_file(&self.cache.join(cache_name(&p.digest)), w, h))
     }
 }
 

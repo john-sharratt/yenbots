@@ -1,14 +1,17 @@
 //! A committed picture sized to its kind's sizes (§15.2): cut to the kind's
-//! shape from its centre, scaled with Lanczos-3, and encoded as lossless
-//! WebP — flat vector art compresses well without loss, and WebP keeps a
+//! shape from its centre, scaled with Lanczos-3, and encoded as lossy WebP
+//! by libwebp at [`QUALITY`]. The image model's flat art carries a fine
+//! grain that lossless coding keeps at nearly a PNG's size; lossy coding
+//! makes a 512 tile a fraction of that with no visible change. WebP keeps a
 //! sticker's transparency, so one format serves every kind.
 
-use std::io::Cursor;
-
-use anyhow::{Context, Result};
-use image::codecs::webp::WebPEncoder;
+use anyhow::{anyhow, Context, Result};
 use image::imageops::{self, FilterType};
 use image::{ImageFormat, RgbaImage};
+use webp::Encoder;
+
+/// libwebp's quality, 0 to 100.
+pub const QUALITY: f32 = 82.0;
 
 /// The picture `png`, decoded.
 pub fn decode(png: &[u8]) -> Result<RgbaImage> {
@@ -38,17 +41,21 @@ pub fn sized(img: &RgbaImage, w: u32, h: u32) -> RgbaImage {
     imageops::resize(&shaped, w, h, FilterType::Lanczos3)
 }
 
-/// `img` as a lossless WebP.
+/// `img` as a lossy WebP at [`QUALITY`], its transparency kept.
 pub fn webp(img: &RgbaImage) -> Result<Vec<u8>> {
-    let mut out = Cursor::new(Vec::new());
-    img.write_with_encoder(WebPEncoder::new_lossless(&mut out))
-        .context("encoding WebP")?;
-    Ok(out.into_inner())
+    let (w, h) = img.dimensions();
+    let encoded = Encoder::from_rgba(img.as_raw(), w, h)
+        .encode_simple(false, QUALITY)
+        .map_err(|e| anyhow!("encoding WebP: {e:?}"))?;
+    Ok(encoded.to_vec())
 }
 
 #[cfg(test)]
 mod tests {
-    use image::Rgba;
+    use std::io::Cursor;
+
+    use image::{load_from_memory_with_format, Rgba};
+    use sha2::{Digest, Sha256};
 
     use super::*;
 
@@ -80,22 +87,32 @@ mod tests {
         assert_eq!(cut(&halves(16, 9), 1024, 576).dimensions(), (16, 9));
     }
 
-    /// **A sized picture reads back pixel for pixel**: lossless, its
-    /// transparency kept.
+    /// **A sized picture is the same bytes every time**, and keeps its
+    /// transparency exactly: libwebp codes the alpha plane without loss.
     #[test]
-    fn a_sized_picture_is_lossless_webp() {
-        let mut img = halves(4, 4);
-        img.put_pixel(0, 0, Rgba([10, 20, 30, 0]));
+    fn a_sized_picture_is_lossy_webp_with_exact_alpha() {
+        let mut img = halves(16, 16);
+        for y in 0..16 {
+            img.put_pixel(0, y, Rgba([10, 20, 30, 0]));
+        }
         let bytes = webp(&img).unwrap();
         assert_eq!(&bytes[..4], b"RIFF");
         assert_eq!(&bytes[8..12], b"WEBP");
-        let back = image::load_from_memory_with_format(&bytes, ImageFormat::WebP)
+        let digest: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        assert_eq!(
+            digest,
+            "b95924f812444991b83d8bef5e3bb54013a8dd6a5137b7eba0e5e96be7dd9ce0"
+        );
+        let back = load_from_memory_with_format(&bytes, ImageFormat::WebP)
             .unwrap()
             .to_rgba8();
-        assert_eq!(back.dimensions(), (4, 4));
-        assert_eq!(back.get_pixel(0, 0).0[3], 0, "transparent");
-        assert_eq!(back.get_pixel(1, 0).0, [255, 0, 0, 255]);
-        assert_eq!(back.get_pixel(3, 3).0, [0, 0, 255, 255]);
+        assert_eq!(back.dimensions(), (16, 16));
+        for (x, y, p) in back.enumerate_pixels() {
+            assert_eq!(p.0[3], if x == 0 { 0 } else { 255 }, "alpha at {x},{y}");
+        }
     }
 
     #[test]

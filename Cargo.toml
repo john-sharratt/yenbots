@@ -33,9 +33,10 @@ flate2 = "1"
 # The embedded JavaScript engine: the check compiles every workflow in it
 # (src/check/rules/workflows.rs), and the framework's tests run in it.
 rquickjs = { version = "0.14.0", features = ["loader"] }
-# The art library's pictures, read as PNG and sized to WebP on load
-# (src/library/sizing.rs).
+# The art library's pictures, read as PNG, sized, and encoded as lossy WebP
+# by libwebp on load (src/library/sizing.rs).
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
+webp = { version = "0.3", default-features = false }
 
 [build-dependencies]
 sha2 = "0.10.9"
