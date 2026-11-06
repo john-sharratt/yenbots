@@ -1,8 +1,9 @@
-//! What every request is served with: the config, the store, the logs, and
-//! the open pages' reload signal.
+//! What every request is served with: the config, the store, the logs, the
+//! apps, and the open pages' reload signal.
 
 use std::sync::Arc;
 
+use crate::apps::Apps;
 use crate::config::Config;
 use crate::logs::Logs;
 use crate::publish::Reloads;
@@ -13,6 +14,7 @@ pub struct App {
     pub cfg: Config,
     pub store: Arc<Store>,
     pub logs: Logs,
+    pub apps: Apps,
     pub reloads: Reloads,
     pub build: BuildInfo,
     pub started_ms: i64,

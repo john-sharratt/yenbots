@@ -7,6 +7,7 @@
 
 pub mod backups;
 pub mod migrations;
+pub mod restore;
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};

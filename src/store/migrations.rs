@@ -35,6 +35,74 @@ pub const STEPS: &[&str] = &[
     );
     CREATE INDEX log_lines_source_at ON log_lines (source, at_ms);
     "#,
+    // 2 — the apps' documents, their search index, groups, shares, app
+    // access and API tokens.
+    r#"
+    CREATE TABLE docs (
+      app        TEXT NOT NULL,
+      coll       TEXT NOT NULL,
+      id         TEXT NOT NULL,
+      owner      TEXT NOT NULL,
+      data       TEXT NOT NULL,
+      version    INTEGER NOT NULL,
+      created_ms INTEGER NOT NULL,
+      updated_ms INTEGER NOT NULL,
+      PRIMARY KEY (app, coll, id)
+    );
+    CREATE INDEX docs_by_owner ON docs (app, coll, owner, updated_ms);
+
+    CREATE VIRTUAL TABLE docs_fts USING fts5(
+      app UNINDEXED, coll UNINDEXED, id UNINDEXED, body,
+      tokenize = 'unicode61 remove_diacritics 2'
+    );
+
+    CREATE TABLE groups (
+      name        TEXT PRIMARY KEY,
+      created_ms  INTEGER NOT NULL
+    );
+    CREATE TABLE group_members (
+      grp      TEXT NOT NULL REFERENCES groups (name) ON DELETE CASCADE,
+      account  TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      PRIMARY KEY (grp, account)
+    );
+
+    -- One record shared with an account or a group, to read or to edit.
+    CREATE TABLE shares (
+      app    TEXT NOT NULL,
+      coll   TEXT NOT NULL,
+      id     TEXT NOT NULL,
+      who    TEXT NOT NULL,           -- 'account:<id>' or 'group:<name>'
+      edit   INTEGER NOT NULL,
+      PRIMARY KEY (app, coll, id, who)
+    );
+
+    -- An app's visibility and who a private one is shared with (§12.4).
+    CREATE TABLE app_access (
+      app      TEXT PRIMARY KEY,
+      private  INTEGER NOT NULL DEFAULT 0,
+      position INTEGER
+    );
+    CREATE TABLE app_shares (
+      app  TEXT NOT NULL,
+      who  TEXT NOT NULL,             -- 'account:<id>' or 'group:<name>'
+      PRIMARY KEY (app, who)
+    );
+
+    -- The site's own settings, changed on the admin page: `registration`.
+    CREATE TABLE site_settings (
+      key    TEXT PRIMARY KEY,
+      value  TEXT NOT NULL
+    );
+
+    -- API tokens (§6.3): only the hash is kept.
+    CREATE TABLE api_tokens (
+      hash        TEXT PRIMARY KEY,
+      name        TEXT NOT NULL UNIQUE,
+      account     TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      created_ms  INTEGER NOT NULL,
+      expires_ms  INTEGER NOT NULL
+    );
+    "#,
 ];
 
 /// The schema this build makes.

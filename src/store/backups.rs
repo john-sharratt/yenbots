@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use serde::Serialize;
 
 use super::Store;
 use crate::accounts::now_ms;
@@ -61,6 +62,53 @@ pub fn back_up(store: &Store, dir: &Path, at_ms: i64) -> Result<Option<PathBuf>>
         std::fs::remove_file(&old).with_context(|| format!("removing {}", old.display()))?;
     }
     Ok(written)
+}
+
+/// A backup held: its day and its size.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Held {
+    pub date: String,
+    pub bytes: u64,
+}
+
+/// The backups in `dir`, oldest first.
+pub fn list(dir: &Path) -> Result<Vec<Held>> {
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut held = Vec::new();
+    for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let date = name
+            .strip_prefix("yenbot-")
+            .and_then(|n| n.strip_suffix(".db"));
+        if let Some(date) = date {
+            if is_date(date) {
+                held.push(Held {
+                    date: date.to_string(),
+                    bytes: entry.metadata()?.len(),
+                });
+            }
+        }
+    }
+    held.sort_by(|a, b| a.date.cmp(&b.date));
+    Ok(held)
+}
+
+/// Whether `s` is a day as backups are named: `YYYY-MM-DD`.
+pub fn is_date(s: &str) -> bool {
+    let fits = |(i, c): (usize, char)| match i {
+        4 | 7 => c == '-',
+        _ => c.is_ascii_digit(),
+    };
+    s.len() == 10 && s.char_indices().all(fits)
+}
+
+/// The backup file of the day `date`, if there is one.
+pub fn held_file(dir: &Path, date: &str) -> Option<PathBuf> {
+    let file = dir.join(format!("yenbot-{date}.db"));
+    (is_date(date) && file.is_file()).then_some(file)
 }
 
 /// The backup job: today's backup on start, and again whenever the day turns.
@@ -128,6 +176,30 @@ mod tests {
         assert_eq!(held, KEEP);
         assert!(!file_for(&backups, 0).exists(), "the oldest went first");
         assert!(file_for(&backups, 19 * DAY).exists());
+    }
+
+    /// **The backups are listed by day with their sizes**, and a day is
+    /// named exactly — never a path.
+    #[test]
+    fn the_backups_are_listed_by_day() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("yenbot-2026-11-06.db"), b"12345").unwrap();
+        std::fs::write(dir.path().join("yenbot-2026-11-05.db"), b"123").unwrap();
+        std::fs::write(dir.path().join("yenbot-2026-11-07.db.part"), b"1").unwrap();
+        std::fs::write(dir.path().join("replaced-1.db"), b"1").unwrap();
+        let held = |date: &str, bytes| Held {
+            date: date.into(),
+            bytes,
+        };
+        assert_eq!(
+            list(dir.path()).unwrap(),
+            [held("2026-11-05", 3), held("2026-11-06", 5)]
+        );
+        assert_eq!(list(&dir.path().join("none")).unwrap(), []);
+        assert!(held_file(dir.path(), "2026-11-06").is_some());
+        assert!(held_file(dir.path(), "2026-11-04").is_none());
+        assert!(held_file(dir.path(), "../yenbot").is_none());
+        assert!(!is_date("2026-1-061"));
     }
 
     /// **A backup cut short is written again**, and is never one of the

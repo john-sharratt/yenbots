@@ -6,10 +6,10 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// How a new account becomes active.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Registration {
     /// A new account waits for an admin to approve it.
@@ -103,6 +103,11 @@ impl Config {
     /// The store's file.
     pub fn db_path(&self) -> PathBuf {
         self.data_dir.join("yenbot.db")
+    }
+
+    /// The nightly backups' folder.
+    pub fn backups_dir(&self) -> PathBuf {
+        self.data_dir.join("backups")
     }
 }
 

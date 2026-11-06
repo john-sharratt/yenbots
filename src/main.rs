@@ -9,7 +9,9 @@
 
 mod accounts;
 mod app;
+mod apps;
 mod config;
+mod data;
 mod logs;
 mod publish;
 mod serve;
@@ -26,6 +28,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 use app::App;
+use apps::Apps;
 use config::Config;
 use logs::layer::StoreLayer;
 use logs::Logs;
@@ -62,12 +65,23 @@ async fn main() -> Result<()> {
         .with(StoreLayer::new(logs.clone()))
         .init();
 
-    backups::start(store.clone(), cfg.data_dir.join("backups"));
+    backups::start(store.clone(), cfg.backups_dir());
     let key = std::fs::read_to_string(&cfg.bus.key_file)
         .with_context(|| format!("reading the bus key {}", cfg.bus.key_file.display()))?
         .trim()
         .to_string();
     let reloads = Reloads::new();
+    let apps = Apps::open(cfg.live_dir.join("apps"));
+    {
+        // Each move of the live checkout reads the apps again.
+        let (apps, mut moved) = (apps.clone(), reloads.subscribe());
+        tokio::spawn(async move {
+            while moved.recv().await.is_ok() {
+                let apps = apps.clone();
+                let _ = tokio::task::spawn_blocking(move || apps.reload()).await;
+            }
+        });
+    }
     publish::start(
         cfg.live_dir.clone(),
         cfg.bus.url.clone(),
@@ -80,6 +94,7 @@ async fn main() -> Result<()> {
         cfg,
         store,
         logs,
+        apps,
         reloads,
         build: build.clone(),
         started_ms: accounts::now_ms(),

@@ -4,12 +4,15 @@
 //! until an admin approves it — unless registration is open, or the person
 //! is an admin, whose account is active from the first request.
 
+pub mod admin;
+pub mod caller;
 pub mod identity;
+pub mod tokens;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Result};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::config::{Config, Registration};
@@ -60,6 +63,23 @@ pub fn now_ms() -> i64 {
         .map_or(0, |d| d.as_millis() as i64)
 }
 
+/// How a new account becomes active: as the admin page last set it, else
+/// as `yenbot.yaml` says.
+pub fn registration_of(conn: &Connection, cfg: &Config) -> Result<Registration> {
+    let set: Option<String> = conn
+        .query_row(
+            "SELECT value FROM site_settings WHERE key = 'registration'",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(match set.as_deref() {
+        Some("open") => Registration::Open,
+        Some("approve") => Registration::Approve,
+        _ => cfg.registration,
+    })
+}
+
 /// The account `id` is signed in as: registered on its first request,
 /// refreshed on every later one.
 pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<Account> {
@@ -89,7 +109,8 @@ pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<A
             )?;
         }
         None => {
-            let status = if admin || cfg.registration == Registration::Open {
+            let registration = registration_of(&conn, cfg)?;
+            let status = if admin || registration == Registration::Open {
                 Status::Active
             } else {
                 Status::Pending

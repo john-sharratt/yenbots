@@ -61,4 +61,12 @@ what it shows.
 
 `log_list`, `log_read` and `log_grep` on the connector: the platform is source `yenbot`,
 each app `yenbot/<app>`. Everything the site stores is its API, called from a Zen task
-with the HTTP tools (`docs/calling-the-api.md`). Look before guessing.
+with the HTTP tools and an API token (`docs/api/admin-tokens.md`); every route is in
+`docs/api/`. Look before guessing.
+
+## Adding a route
+
+A route is defined once, in `src/serve/routes.rs`: its method, path, page, parameters
+and body fields. The router is built from that table, `/api/v1/openapi.json` is written
+from it, and `docs/api/<page>.md` must describe it — a section headed
+``### `METHOD /path` `` naming exactly what it takes, with an example — or the tests fail.
