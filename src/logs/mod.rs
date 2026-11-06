@@ -8,6 +8,7 @@
 //! or above is a line, written off the request path by one writer thread.
 
 pub mod api;
+pub mod browser;
 pub mod layer;
 
 use std::sync::Arc;

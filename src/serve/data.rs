@@ -1,5 +1,6 @@
-//! `/api/v1/data/…` and `/api/v1/apps` (§6.1): an app's records, read and
-//! written as the caller, and the apps the caller may open.
+//! `/api/v1/data/…` and `/api/v1/apps…` (§6.1): an app's records, read and
+//! written as the caller — each write told to the open pages that may see it
+//! once it is committed — and the apps the caller may open.
 
 use std::sync::Arc;
 
@@ -8,18 +9,20 @@ use axum::extract::{Path, State};
 use axum::http::{header, HeaderMap, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use rusqlite::{Connection, Transaction};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 use super::reply::{active, body, denied, error, internal, ok, Args};
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
 use crate::app::App;
 use crate::apps::access::{access_of, may_open};
-use crate::apps::manifest::Manifest;
-use crate::data::docs::{self, Change, Query as DocQuery, Shares, Sum, Write};
+use crate::apps::manifest::{Manifest, Scope};
+use crate::data::changes::{audience, either, Audience, Changed, Feed, Op};
+use crate::data::docs::{self, admits, Change, Query as DocQuery, Shares, Sum, Write, Wrote};
 
-fn no_app(id: &str) -> Response {
+pub fn no_app(id: &str) -> Response {
     error(
         StatusCode::NOT_FOUND,
         "no_app",
@@ -29,7 +32,7 @@ fn no_app(id: &str) -> Response {
 
 /// The app `id`, when the caller may open it. One the caller may not open
 /// is answered as one that is not there.
-fn opened(state: &App, id: &str, caller: &Caller) -> Result<Arc<Manifest>, Response> {
+pub fn opened(state: &App, id: &str, caller: &Caller) -> Result<Arc<Manifest>, Response> {
     let m = state.apps.get(id).ok_or_else(|| no_app(id))?;
     match may_open(&state.store, &m, caller) {
         Ok(true) => Ok(m),
@@ -59,6 +62,38 @@ where
     })
     .await
     .unwrap_or_else(internal)
+}
+
+/// The change `op` made to record `id` of `coll`, with who hears of it,
+/// read inside the write's transaction.
+fn changed(
+    conn: &Connection,
+    m: &Manifest,
+    coll: &str,
+    id: &str,
+    op: Op,
+) -> Result<Changed, Response> {
+    let (audience, version) = match op {
+        Op::Deleted => (Audience::App, 0),
+        Op::Created | Op::Updated => audience(conn, m, coll, id).map_err(internal)?,
+    };
+    Ok(Changed {
+        app: m.id.clone(),
+        coll: coll.to_string(),
+        id: id.to_string(),
+        op,
+        version,
+        audience,
+    })
+}
+
+/// Commit `tx`, then tell the open pages of each of `changes`.
+fn commit(s: &App, tx: Transaction<'_>, changes: Vec<Changed>) -> Result<(), Response> {
+    tx.commit().map_err(internal)?;
+    for c in changes {
+        s.changes.send(Feed::Changed(c));
+    }
+    Ok(())
 }
 
 pub async fn list(
@@ -95,13 +130,15 @@ pub async fn create(
             Ok(tx) => tx,
             Err(e) => return internal(e),
         };
-        match docs::create(&tx, m, &coll, c, &data, now_ms()) {
-            Ok(Ok(doc)) => match tx.commit() {
-                Ok(()) => (StatusCode::CREATED, Json(doc)).into_response(),
-                Err(e) => internal(e),
-            },
-            Ok(Err(d)) => denied(d),
-            Err(e) => internal(e),
+        let doc = match docs::create(&tx, m, &coll, c, &data, now_ms()) {
+            Ok(Ok(doc)) => doc,
+            Ok(Err(d)) => return denied(d),
+            Err(e) => return internal(e),
+        };
+        let told = changed(&tx, m, &coll, &doc.id, Op::Created);
+        match told.and_then(|t| commit(s, tx, vec![t])) {
+            Ok(()) => (StatusCode::CREATED, Json(doc)).into_response(),
+            Err(r) => r,
         }
     })
     .await
@@ -158,13 +195,15 @@ pub async fn patch(
             patch: &data,
             expect,
         };
-        match docs::update(&tx, m, &coll, c, &id, change, now_ms()) {
-            Ok(Ok(doc)) => match tx.commit() {
-                Ok(()) => ok(doc),
-                Err(e) => internal(e),
-            },
-            Ok(Err(d)) => denied(d),
-            Err(e) => internal(e),
+        let doc = match docs::update(&tx, m, &coll, c, &id, change, now_ms()) {
+            Ok(Ok(doc)) => doc,
+            Ok(Err(d)) => return denied(d),
+            Err(e) => return internal(e),
+        };
+        let told = changed(&tx, m, &coll, &id, Op::Updated);
+        match told.and_then(|t| commit(s, tx, vec![t])) {
+            Ok(()) => ok(doc),
+            Err(r) => r,
         }
     })
     .await
@@ -183,12 +222,14 @@ pub async fn remove(
             Err(e) => return internal(e),
         };
         match docs::delete(&tx, m, &coll, c, &id) {
-            Ok(Ok(())) => match tx.commit() {
-                Ok(()) => ok(json!({"deleted": id})),
-                Err(e) => internal(e),
-            },
-            Ok(Err(d)) => denied(d),
-            Err(e) => internal(e),
+            Ok(Ok(())) => {}
+            Ok(Err(d)) => return denied(d),
+            Err(e) => return internal(e),
+        }
+        let told = changed(&tx, m, &coll, &id, Op::Deleted);
+        match told.and_then(|t| commit(s, tx, vec![t])) {
+            Ok(()) => ok(json!({"deleted": id})),
+            Err(r) => r,
         }
     })
     .await
@@ -235,6 +276,30 @@ pub async fn search(
     .await
 }
 
+/// The changes a batch made, one per write.
+fn batch_changes(
+    conn: &Connection,
+    m: &Manifest,
+    writes: &[Write],
+    done: &[Wrote],
+) -> Result<Vec<Changed>, Response> {
+    let mut out = Vec::new();
+    for (w, d) in writes.iter().zip(done) {
+        let c = match (w, d) {
+            (Write::Create { coll, .. }, Wrote::Doc(doc)) => {
+                changed(conn, m, coll, &doc.id, Op::Created)?
+            }
+            (Write::Update { coll, id, .. }, _) => changed(conn, m, coll, id, Op::Updated)?,
+            (Write::Delete { coll, id }, _) => changed(conn, m, coll, id, Op::Deleted)?,
+            (Write::Create { .. }, Wrote::Deleted { .. }) => {
+                return Err(internal("a create answered as a deletion"))
+            }
+        };
+        out.push(c);
+    }
+    Ok(out)
+}
+
 pub async fn batch(
     State(s): State<Arc<App>>,
     Path(app): Path<String>,
@@ -260,17 +325,19 @@ pub async fn batch(
             Ok(tx) => tx,
             Err(e) => return internal(e),
         };
-        match docs::batch(&tx, m, c, &writes, now_ms()) {
-            Ok(Ok(done)) => match tx.commit() {
-                Ok(()) => ok(json!({"done": done})),
-                Err(e) => internal(e),
-            },
+        let done = match docs::batch(&tx, m, c, &writes, now_ms()) {
+            Ok(Ok(done)) => done,
             Ok(Err((at, d))) => {
                 let mut r = denied(d);
                 r.headers_mut().insert("x-yen-batch-at", at.into());
-                r
+                return r;
             }
-            Err(e) => internal(e),
+            Err(e) => return internal(e),
+        };
+        let told = batch_changes(&tx, m, &writes, &done);
+        match told.and_then(|t| commit(s, tx, t)) {
+            Ok(()) => ok(json!({"done": done})),
+            Err(r) => r,
         }
     })
     .await
@@ -296,13 +363,23 @@ pub async fn share(
             Ok(tx) => tx,
             Err(e) => return internal(e),
         };
+        // Those it leaves hear of it too, and drop it.
+        let before = match changed(&tx, m, &coll, &id, Op::Updated) {
+            Ok(b) => b.audience,
+            Err(r) => return r,
+        };
         match docs::share(&tx, m, &coll, c, &id, &to) {
-            Ok(Ok(())) => match tx.commit() {
-                Ok(()) => ok(&to),
-                Err(e) => internal(e),
-            },
-            Ok(Err(d)) => denied(d),
-            Err(e) => internal(e),
+            Ok(Ok(())) => {}
+            Ok(Err(d)) => return denied(d),
+            Err(e) => return internal(e),
+        }
+        let told = changed(&tx, m, &coll, &id, Op::Updated).map(|after| Changed {
+            audience: either(before, after.audience.clone()),
+            ..after
+        });
+        match told.and_then(|t| commit(s, tx, vec![t])) {
+            Ok(()) => ok(&to),
+            Err(r) => r,
         }
     })
     .await
@@ -343,4 +420,39 @@ pub async fn apps(State(s): State<Arc<App>>, method: Method, headers: HeaderMap)
     })
     .await
     .unwrap_or_else(internal)
+}
+
+/// `GET /api/v1/apps/{app}`: what the framework builds the app's pages
+/// from — its collections, their fields, and whether the caller may add to
+/// each.
+pub async fn describe(
+    State(s): State<Arc<App>>,
+    Path(app): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    with(s, method, headers, app, move |_, c, m| {
+        let collections: Map<String, Value> = m
+            .collections
+            .iter()
+            .map(|(name, coll)| {
+                let may_add = coll.scope == Scope::Private || admits(&coll.roles.write, c);
+                let described = json!({
+                    "scope": coll.scope,
+                    "fields": coll.fields,
+                    "search": coll.search,
+                    "may_add": may_add,
+                });
+                (name.clone(), described)
+            })
+            .collect();
+        ok(json!({
+            "id": m.id,
+            "name": m.name,
+            "description": m.description,
+            "status": m.status,
+            "collections": collections,
+        }))
+    })
+    .await
 }

@@ -72,7 +72,8 @@ pub fn collection<'m>(app: &'m Manifest, coll: &str) -> Answer<&'m Collection> {
         .ok_or_else(|| Denied::NoCollection(format!("{} has no collection `{coll}`", app.id)))
 }
 
-fn admits(names: &[String], caller: &Caller) -> bool {
+/// Whether a role list — `everyone`, or group names — names `caller`.
+pub fn admits(names: &[String], caller: &Caller) -> bool {
     names.iter().any(|n| n == EVERYONE) || caller.groups.iter().any(|g| names.contains(g))
 }
 

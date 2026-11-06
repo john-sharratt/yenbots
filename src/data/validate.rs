@@ -2,13 +2,14 @@
 //! names must be declared and of its type, within its bounds; a new record
 //! must carry every required field and takes each default it leaves out. A
 //! refusal names the field and the reason, which the framework's forms show
-//! beside the field.
+//! beside the field. Every string written is stored in NFC ([`nfc`]).
 
 use std::collections::BTreeMap;
 
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use super::nfc::nfc;
 use crate::apps::manifest::{Field, FieldType};
 
 /// Why a write was refused.
@@ -120,6 +121,7 @@ pub fn create(fields: &BTreeMap<String, Field>, data: &Value) -> Result<Value, R
         let value = given
             .get(name)
             .cloned()
+            .map(nfc)
             .or_else(|| f.default.clone())
             .unwrap_or(Value::Null);
         check_field(name, f, &value)?;
@@ -144,11 +146,12 @@ pub fn update(
         let Some(f) = fields.get(name) else {
             return Err(refused(name, "is not a field of this collection"));
         };
-        check_field(name, f, value)?;
+        let value = nfc(value.clone());
+        check_field(name, f, &value)?;
         if value.is_null() {
             merged.remove(name);
         } else {
-            merged.insert(name.clone(), value.clone());
+            merged.insert(name.clone(), value);
         }
     }
     for (name, f) in fields {
@@ -225,5 +228,18 @@ mod tests {
             update(&f, &held, &json!({"title": null})).unwrap_err(),
             refused("title", "is required")
         );
+    }
+
+    /// **A record is stored in NFC, made or changed.**
+    #[test]
+    fn written_text_is_stored_composed() {
+        let f = fields();
+        let stacked = json!({"title": "Pho\u{031B}\u{0309}"});
+        assert_eq!(
+            create(&f, &stacked),
+            Ok(json!({"title": "Phở", "serves": 2}))
+        );
+        let held = json!({"title": "Soup"});
+        assert_eq!(update(&f, &held, &stacked), Ok(json!({"title": "Phở"})));
     }
 }

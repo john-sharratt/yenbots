@@ -50,6 +50,11 @@ impl Apps {
         *loaded = next;
     }
 
+    /// The folder the apps are read from, one subfolder each.
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     pub fn get(&self, id: &str) -> Option<Arc<Manifest>> {
         self.loaded
             .read()

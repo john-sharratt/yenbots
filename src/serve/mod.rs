@@ -3,7 +3,8 @@
 //! | Route | |
 //! |---|---|
 //! | `GET /` | the landing page (`web/index.html`) |
-//! | `GET /_/…` | the platform's web files, embedded ([`web`]) |
+//! | `GET /_/…` | the platform's web files and the framework, embedded ([`web`]) |
+//! | `GET /a/{id}/…` | an app's files and pages, from the live checkout ([`app_files`]) |
 //! | `/api/v1/…` | the API, every route defined once in [`routes::ROUTES`] |
 //! | `GET /v1/status` | the site's health ([`status`]) |
 //! | `GET /v1/logs`, `/v1/logs/sources` | the site as a log source |
@@ -14,7 +15,11 @@
 #![allow(clippy::result_large_err)]
 
 pub mod admin;
+pub mod app_files;
+pub mod asset;
 pub mod data;
+pub mod errors;
+pub mod events;
 pub mod me;
 pub mod openapi;
 pub mod reload;
@@ -39,6 +44,9 @@ pub fn router(app: Arc<App>) -> Router {
     let mut r = Router::new()
         .route("/", get(web::landing))
         .route("/_/*path", get(web::platform_file))
+        .route("/a/:id", get(app_files::bare))
+        .route("/a/:id/", get(app_files::index))
+        .route("/a/:id/*path", get(app_files::file))
         .route("/v1/status", get(status::status))
         .route("/v1/logs", get(api::logs))
         .route("/v1/logs/sources", get(api::sources));
@@ -65,12 +73,18 @@ mod tests {
     use crate::apps::manifest::Manifest;
     use crate::apps::Apps;
     use crate::config::Config;
+    use crate::data::changes::{Changes, Feed};
+    use crate::logs::browser::Repeats;
     use crate::logs::{Level, Line, Logs};
     use crate::publish::Reloads;
     use crate::store::Store;
     use crate::version::BuildInfo;
 
-    pub(super) fn app() -> Arc<App> {
+    const HOME: &str =
+        "id: home\nname: Home\nstatus: live\ncollections:\n  notes:\n    scope: private\n    \
+                        fields:\n      text: { type: text, required: true }\n    search: [text]\n";
+
+    fn serving(apps: Apps) -> Arc<App> {
         let store = Arc::new(Store::in_memory().unwrap());
         Arc::new(App {
             cfg: Config::from_yaml(
@@ -79,17 +93,18 @@ mod tests {
             )
             .unwrap(),
             logs: Logs::new(store.clone()),
-            apps: Apps::of(vec![Manifest::parse(
-                "id: home\nname: Home\nstatus: live\ncollections:\n  notes:\n    scope: private\n    \
-                 fields:\n      text: { type: text, required: true }\n    search: [text]\n",
-                "home",
-            )
-            .unwrap()]),
+            apps,
             reloads: Reloads::new(),
+            changes: Changes::new(),
+            repeats: Repeats::new(),
             store,
             build: BuildInfo::this(),
             started_ms: 1,
         })
+    }
+
+    pub(super) fn app() -> Arc<App> {
+        serving(Apps::of(vec![Manifest::parse(HOME, "home").unwrap()]))
     }
 
     async fn get_as(app: &Arc<App>, path: &str, who: Option<(&str, &str)>) -> (StatusCode, Value) {
@@ -328,6 +343,163 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(chunk, "event: reload\ndata: 4f1c\n\n");
+    }
+
+    /// The next event on an open feed, as its text.
+    async fn next_event(res: Response) -> String {
+        let mut body = res.into_body().into_data_stream();
+        let chunk = tokio::time::timeout(Duration::from_secs(5), body.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        String::from_utf8(chunk.to_vec()).unwrap()
+    }
+
+    fn signed_in(path: &str, who: (&str, &str)) -> Request<Body> {
+        Request::get(path)
+            .header("x-tokera-user", who.0)
+            .header("x-tokera-provider", "google")
+            .header("x-tokera-email", who.1)
+            .header("x-tokera-name", "N")
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    /// **An open page hears of each write it may see, by id and version,
+    /// never by its fields**, and of a restore as a reset.
+    #[tokio::test]
+    async fn an_open_page_hears_each_change() {
+        let app = app();
+        let yen = ("1", "yen@example.com");
+        let feed = router(app.clone())
+            .oneshot(signed_in("/api/v1/events/home", yen))
+            .await
+            .unwrap();
+        assert_eq!(feed.headers()["content-type"], "text/event-stream");
+        let note = Some(json!({"text": "Phở"}));
+        let (_, made) = call(&app, "POST", NOTES, yen, note, true).await;
+        let id = made["id"].as_str().unwrap();
+        assert_eq!(
+            next_event(feed).await,
+            format!(
+                "event: change\ndata: {{\"coll\":\"notes\",\"id\":\"{id}\",\"op\":\"created\",\"version\":1}}\n\n"
+            )
+        );
+        let feed = router(app.clone())
+            .oneshot(signed_in("/api/v1/events/home", yen))
+            .await
+            .unwrap();
+        app.changes.send(Feed::Reset(Some("home".into())));
+        assert_eq!(next_event(feed).await, "event: reset\ndata: {}\n\n");
+        let (status, _) = get_as(&app, "/api/v1/events/nope", Some(yen)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    /// **The framework reads what an app's pages are built from.**
+    #[tokio::test]
+    async fn an_app_is_described_to_its_pages() {
+        let yen = ("1", "yen@example.com");
+        let (status, d) = get_as(&app(), "/api/v1/apps/home", Some(yen)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            d["collections"]["notes"],
+            json!({
+                "scope": "private",
+                "fields": {"text": {"type": "text", "required": true}},
+                "search": ["text"],
+                "may_add": true,
+            })
+        );
+    }
+
+    /// **A browser's error is written to its app's log, and a repeat is
+    /// counted instead**; it comes from a signed-in page of the site.
+    #[tokio::test]
+    async fn a_browser_error_is_written_to_its_apps_log() {
+        let app = app();
+        let yen = ("1", "yen@example.com");
+        let report = json!({
+            "app": "home", "page": "https://yenbot.com.au/a/home/",
+            "message": "TypeError: x is undefined", "stack": "at home.js:3",
+        });
+        let post = |framework| {
+            call(
+                &app,
+                "POST",
+                "/api/v1/errors",
+                yen,
+                Some(report.clone()),
+                framework,
+            )
+        };
+        assert_eq!(post(false).await.0, StatusCode::FORBIDDEN);
+        assert_eq!(post(true).await.1, json!({"noted": "written"}));
+        assert_eq!(post(true).await.1, json!({"noted": "counted"}));
+        let (_, found) = get_as(&app, "/v1/logs?source=yenbot/home", Some(yen)).await;
+        let lines = found["lines"].as_array().unwrap();
+        assert_eq!(lines.len(), 1);
+        let line = lines[0].as_str().unwrap();
+        assert!(line.contains("ERROR yenbot/home browser: TypeError: x is undefined — at https://yenbot.com.au/a/home/ — account 1 on "));
+        assert!(line.ends_with("\nat home.js:3"));
+        let nowhere = json!({"app": "nope", "page": "p", "message": "m"});
+        let (status, _) = call(&app, "POST", "/api/v1/errors", yen, Some(nowhere), true).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    async fn fetch(app: &Arc<App>, path: &str) -> (StatusCode, String) {
+        let res = router(app.clone())
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = res.status();
+        let location = res
+            .headers()
+            .get("location")
+            .map(|l| l.to_str().unwrap().to_string());
+        let body = to_bytes(res.into_body(), 1 << 20).await.unwrap();
+        let text = String::from_utf8_lossy(&body).to_string();
+        (status, location.unwrap_or(text))
+    }
+
+    /// **An app's files are served from its folder, every page of it is its
+    /// `index.html` with its base, and the server's own files are not.**
+    #[tokio::test]
+    async fn an_apps_files_and_pages_are_served() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(home.join("workflows")).unwrap();
+        std::fs::write(home.join("app.yaml"), HOME).unwrap();
+        std::fs::write(home.join("index.html"), "<head></head><yen-app></yen-app>").unwrap();
+        std::fs::write(home.join("app.js"), "export {};").unwrap();
+        std::fs::write(home.join("workflows").join("remind.js"), "x").unwrap();
+        let app = serving(Apps::open(dir.path()));
+        let page = "<head>\n  <base href=\"/a/home/\"></head><yen-app></yen-app>";
+        assert_eq!(
+            fetch(&app, "/a/home").await,
+            (StatusCode::PERMANENT_REDIRECT, "/a/home/".into())
+        );
+        assert_eq!(fetch(&app, "/a/home/").await, (StatusCode::OK, page.into()));
+        assert_eq!(
+            fetch(&app, "/a/home/r/7").await,
+            (StatusCode::OK, page.into())
+        );
+        assert_eq!(
+            fetch(&app, "/a/home/app.js").await,
+            (StatusCode::OK, "export {};".into())
+        );
+        for hidden in [
+            "/a/home/app.yaml",
+            "/a/home/workflows/remind.js",
+            "/a/home/nope.js",
+            "/a/nope/",
+        ] {
+            assert_eq!(
+                fetch(&app, hidden).await.0,
+                StatusCode::NOT_FOUND,
+                "{hidden}"
+            );
+        }
     }
 
     #[tokio::test]

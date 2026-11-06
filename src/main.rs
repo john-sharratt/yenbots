@@ -18,6 +18,9 @@ mod serve;
 mod store;
 mod version;
 
+#[cfg(test)]
+mod framework_tests;
+
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,6 +33,8 @@ use tracing_subscriber::EnvFilter;
 use app::App;
 use apps::Apps;
 use config::Config;
+use data::changes::Changes;
+use logs::browser::Repeats;
 use logs::layer::StoreLayer;
 use logs::Logs;
 use publish::Reloads;
@@ -96,6 +101,8 @@ async fn main() -> Result<()> {
         logs,
         apps,
         reloads,
+        changes: Changes::new(),
+        repeats: Repeats::new(),
         build: build.clone(),
         started_ms: accounts::now_ms(),
     });

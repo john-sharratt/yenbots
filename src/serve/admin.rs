@@ -19,6 +19,7 @@ use crate::app::App;
 use crate::apps::access::{access_of, set_order, set_private, set_shares};
 use crate::apps::manifest::Scope;
 use crate::config::Registration;
+use crate::data::changes::Feed;
 use crate::data::docs::{self, Query as DocQuery};
 use crate::store::{backups, restore};
 
@@ -442,12 +443,16 @@ pub async fn backups_restore(
             (None, None) => restore::whole(&s.store, &from, &dir, now_ms()),
         };
         match done {
-            Ok(r) => ok(json!({
+            Ok(r) => {
+                // Every open page of what came back reads it all again.
+                s.changes.send(Feed::Reset(asked.app.clone()));
+                ok(json!({
                 "restored": date,
                 "app": asked.app,
                 "records": r.records,
                 "replaced": r.replaced.file_name().map(|n| n.to_string_lossy().to_string()),
-            })),
+                }))
+            }
             Err(e) => error(StatusCode::CONFLICT, "refused", format!("{e:#}")),
         }
     })

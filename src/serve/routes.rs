@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, data, me, openapi, reload};
+use super::{admin, data, errors, events, me, openapi, reload};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -139,9 +139,32 @@ pub const ROUTES: &[Route] = &[
         params: &[], body: &[], handler: || get(data::apps),
     },
     Route {
+        method: "GET", path: "/api/v1/apps/{app}", page: "site",
+        summary: "One app as its pages are built from it: its collections, their fields, and what the caller may add to.",
+        params: &[APP], body: &[], handler: || get(data::describe),
+    },
+    Route {
         method: "GET", path: "/api/v1/events/_reload", page: "site",
         summary: "Server-sent events: `reload` each time the site serves a new commit.",
         params: &[], body: &[], handler: || get(reload::reload),
+    },
+    Route {
+        method: "GET", path: "/api/v1/events/{app}", page: "site",
+        summary: "Server-sent events: a `change` for each write to the app's records the caller may see, `reset` to read everything again.",
+        params: &[APP], body: &[], handler: || get(events::changes),
+    },
+    Route {
+        method: "POST", path: "/api/v1/errors", page: "site",
+        summary: "What went wrong in a browser, written to the app's log; repeats are counted.",
+        params: &[],
+        body: &[
+            needs("app", Ty::Str, "the app's id, or `_site` for the platform's own pages"),
+            needs("page", Ty::Str, "the page's address"),
+            needs("message", Ty::Str, "what went wrong"),
+            may("stack", Ty::Str, "where, as the browser tells it"),
+            may("repeats", Ty::Int, "how many more times the page saw it since it last posted it"),
+        ],
+        handler: || post(errors::report),
     },
     Route {
         method: "GET", path: "/api/v1/openapi.json", page: "site",

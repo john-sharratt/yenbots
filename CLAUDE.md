@@ -24,7 +24,7 @@ what it shows.
 | Path | What | Changing it |
 |---|---|---|
 | `src/` | the platform: one concern per file | a release (`service_deploy`) |
-| `web/` | the platform's web files: landing page, framework, design system | an edit; the gateway serves it from disk, the binary embeds it |
+| `web/` | the platform's web files: landing page, framework, design system | a release: the binary embeds it |
 | `apps/<id>/` | one folder per app | an edit, live within a second |
 | `library/` | the art library | an edit |
 | `templates/` | starting points for a new app | an edit |

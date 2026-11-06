@@ -54,23 +54,27 @@ pub struct Field {
     #[serde(default)]
     pub required: bool,
     /// The least number, or the fewest characters or items.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,
     /// The greatest number, or the most characters or items.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max: Option<f64>,
     /// Given when a new record leaves the field out.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
     /// A text field shown as a paragraph rather than a line.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub long: bool,
     /// A list's item type.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub of: Option<FieldType>,
     /// A ref's collection.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coll: Option<String>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Who may read and who may write a shared collection (§12.5): `everyone`
@@ -136,6 +140,17 @@ pub struct Manifest {
     pub collections: BTreeMap<String, Collection>,
 }
 
+/// The names the framework gives every record beside its fields
+/// (`web/_/framework/records.js`), which no field may take.
+pub const RESERVED: &[&str] = &[
+    "id",
+    "owner",
+    "version",
+    "created_ms",
+    "updated_ms",
+    "pending",
+];
+
 /// Whether `name` is one an app, collection or field may have: lowercase
 /// letters, digits, `-` and `_`, starting with a letter, at most 48.
 pub fn is_name(name: &str) -> bool {
@@ -167,6 +182,9 @@ impl Manifest {
             for (field, f) in &c.fields {
                 if !is_name(field) {
                     bail!("{name}: `{field}` is not a field name");
+                }
+                if RESERVED.contains(&field.as_str()) {
+                    bail!("{name}: `{field}` is the record's own; call the field something else");
                 }
                 if f.kind == FieldType::List && f.of.is_none() {
                     bail!("{name}.{field}: a list says what it holds, `of: text`");
@@ -234,6 +252,8 @@ collections:
         let unlisted = changed("search: [title, tags]", "search: [body]");
         assert!(unlisted.contains("`body` is listed but is not a field"));
         assert!(changed("serves: {", "serves: { typo: 1,").contains("parse"));
+        let reserved = changed("serves: {", "version: {");
+        assert!(reserved.contains("`version` is the record's own"));
     }
 
     #[test]
