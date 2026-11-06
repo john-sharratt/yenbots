@@ -8,8 +8,7 @@
 //
 // A message is `{role: "user" | "assistant", text, pending}`; `pending` is
 // an answer still arriving. Enter sends, Shift+Enter starts a new line, and
-// a word still being composed — Vietnamese typed with Telex — is never sent
-// half-made.
+// a word the keyboard is still composing is never sent half-made.
 
 import { css, html, repeat } from "../../vendor/lit-all.min.js";
 import { YenElement } from "../../framework/element.js";

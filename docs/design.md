@@ -2,12 +2,12 @@
 
 How an app looks: the tokens every page is drawn in, the few an app may
 change for itself, and every component with what it takes and what it
-raises. The design is `candle/docs/yenbot_app_host.md` §8.5 and §8.7.
+raises. The design is `candle/docs/yenbot_app_host.md` §8.5.
 
 **Open `/_design` first.** It shows every token and every component in every
 state, light and dark side by side, at a phone's width or a desktop's;
 `/_design?app=<id>` shows it all in that app's theme, and `?part=buttons`
-just one section. `/_design/vietnamese` is the type's test page.
+just one section.
 
 ## The rules, each with its reason
 
@@ -19,8 +19,8 @@ just one section. `/_design/vietnamese` is the type's test page.
   words and its motion already.
 - **Hide what the caller may not do**, rather than show it disabled.
 - **Text cut short is cut sideways** (`overflow-x: clip; text-overflow:
-  ellipsis`), never with `overflow: hidden` on a line: a Vietnamese capital
-  carries marks above the line box, and a vertical clip cuts them off.
+  ellipsis`), never with `overflow: hidden` on a line: an accent on a
+  capital (É) stands above the line box, and a vertical clip cuts it off.
 
 ## What every app page has
 
@@ -151,14 +151,13 @@ part in a `<form>` as a native control does.
 A picker chooses and shows; sending the files is the page's. The chat and
 drawing panels show and ask; the page holds the conversation and calls the AI.
 
-## Type and Vietnamese
+## Type and text
 
-Two self-hosted faces with every Vietnamese letter: **Be Vietnam Pro** for
-text, at four weights, and **Fraunces** for display — headings, unless the
-theme says `type: text`. Each is split by range, so a page loads only what
-its text uses. Lines are never set tighter than `--yen-leading-tight` (1.4),
-so stacked marks clear the line above. Text is stored composed (NFC), lists
-sort by `Intl.Collator("vi")`, and search ignores accents.
+Two self-hosted faces: **Be Vietnam Pro** for text, at four weights, and
+**Fraunces** for display — headings, unless the theme says `type: text`. Each
+is split into its Latin and Latin-extended ranges, so a page loads only what
+its text uses. Interfaces are in English. Text is stored composed (NFC),
+lists sort by `Intl.Collator("en-AU")`, and search ignores accents.
 
 ## Where it lives
 
@@ -171,9 +170,9 @@ sort by `Intl.Collator("vi")`, and search ignores accents.
 | `web/_/ui/*.js` | their arithmetic — months, chart scales, toasts, initials — tested in QuickJS |
 | `web/_/icons/sprite.svg` | the icons (Lucide, ISC) |
 | `web/_/fonts/` | the faces (SIL Open Font License) |
-| `web/_design/` | the catalogue and the Vietnamese test page |
+| `web/_design/` | the catalogue |
 | `src/apps/theme/` | an app's theme: its names, its contrast check, its stylesheet |
 
 A change here is a release of the binary. The tests hold the icon names to
-the sprite, every face to the Vietnamese letters, the house palette to AA on
-every surface, and every theme to readable.
+the sprite, the faces named to the faces embedded, the house palette to AA
+on every surface, and every theme to readable.

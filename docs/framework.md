@@ -279,7 +279,7 @@ is "Due", `shopping-list` is "Shopping list".
 - **Reload on publish**: an open page reloads itself when an edit goes live,
   or when it next shows if it was hidden.
 - **Text in NFC**: every string written is normalised, so the same
-  Vietnamese word is always the same bytes.
+  accented word is always the same bytes.
 
 ## Where it lives
 

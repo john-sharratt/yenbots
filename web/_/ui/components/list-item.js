@@ -53,7 +53,7 @@ export class YenListItem extends YenElement {
         min-width: 0;
         display: grid;
       }
-      /* Cut short sideways only: a mark above a Vietnamese capital stands above the line box. */
+      /* Cut short sideways only: an accent on a capital stands above the line box. */
       .headline {
         font-weight: var(--yen-weight-medium);
         overflow-x: clip;

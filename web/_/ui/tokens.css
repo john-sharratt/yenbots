@@ -121,13 +121,11 @@
   --yen-weight-bold: 700;
 
   /*
-   * Vietnamese stacks two marks above a capital (Ể, Ẫ), and Be Vietnam Pro
-   * sets them high, above the line box: no line is set tighter than 1.4, so
-   * the marks clear the line above, and text that is cut short is clipped
-   * only sideways (overflow-x: clip), never above or below. The test page,
-   * /_design/vietnamese, shows both.
+   * An accent on a capital (É) stands above the line box, so text that is
+   * cut short is clipped only sideways (overflow-x: clip), never above or
+   * below.
    */
-  --yen-leading-tight: 1.4;
+  --yen-leading-tight: 1.25;
   --yen-leading: 1.55;
   --yen-measure: 65ch;
 

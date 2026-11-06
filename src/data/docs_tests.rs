@@ -204,7 +204,7 @@ fn sums_count_and_total_by_group() {
 /// **"pho" finds "phở", "banh da" finds "Bánh đa"**, and an update is
 /// searched as it now reads.
 #[test]
-fn search_folds_vietnamese_diacritics() {
+fn search_folds_diacritics() {
     let (_d, s) = store();
     let yen = caller("yen", &[]);
     let pho = make(&s, "recipes", &yen, json!({"title": "Phở bò"})).unwrap();

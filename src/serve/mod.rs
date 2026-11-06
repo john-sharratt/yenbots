@@ -5,7 +5,7 @@
 //! | `GET /` | the landing page (`web/index.html`) |
 //! | `GET /_/…` | the platform's web files, the framework and the design system, embedded ([`web`]) |
 //! | `GET /_/theme/{id}.css` | an app's theme, from its manifest ([`theme`]) |
-//! | `GET /_design`, `/_design/vietnamese` | the design system's catalogue and its Vietnamese test page |
+//! | `GET /_design` | the design system's catalogue |
 //! | `GET /a/{id}/…` | an app's files and pages, from the live checkout ([`app_files`]) |
 //! | `/api/v1/…` | the API, every route defined once in [`routes::ROUTES`] |
 //! | `GET /v1/status` | the site's health ([`status`]) |
@@ -549,13 +549,12 @@ mod tests {
         assert_ne!(a, b);
     }
 
-    /// **The catalogue and its Vietnamese test page are served**, by name.
+    /// **The catalogue and its files are served.**
     #[tokio::test]
     async fn the_catalogue_is_served() {
         let app = app();
         for path in [
             "/_design",
-            "/_design/vietnamese",
             "/_design/catalogue.js",
             "/_/yen.css",
             "/_/icons/sprite.svg",

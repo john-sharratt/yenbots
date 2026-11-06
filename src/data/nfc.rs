@@ -1,7 +1,7 @@
-//! Text normalised on every write (§8.7): the same Vietnamese word, typed on
-//! a phone that composes `ở` as one character or on one that stacks the
-//! horn and the hook, is stored as the same bytes, so it compares, sorts and
-//! searches as the same word.
+//! Text normalised on every write (§8.7): the same accented word, typed on a
+//! phone that composes `é` as one character or on one that sends the letter
+//! and its accent apart, is stored as the same bytes, so it compares, sorts
+//! and searches as the same word.
 
 use serde_json::Value;
 use unicode_normalization::UnicodeNormalization;

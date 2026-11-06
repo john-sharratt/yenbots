@@ -1,20 +1,5 @@
-import { letters } from "../../web/_design/letters.js";
 import { framed, groupOf, readTokens } from "../../web/_design/tokens.js";
 import { eq, test } from "./harness.js";
-
-test("the test page shows every Vietnamese letter, each one composed character", () => {
-  const lower = letters(false).flat();
-  const upper = letters(true).flat();
-  eq([lower.length, upper.length], [74, 74]);
-  eq(letters(false)[1], ["ă", "ằ", "ắ", "ẳ", "ẵ", "ặ"]);
-  eq(letters(true)[10], ["Ư", "Ừ", "Ứ", "Ử", "Ữ", "Ự"]);
-  eq(letters(true)[12], ["D", "Đ"]);
-  eq(
-    [...lower, ...upper].filter((l) => [...l].length !== 1),
-    [],
-    "no letter needs a combining mark",
-  );
-});
 
 const CSS = `/* the house: --yen-gone: #000; */
 :root {

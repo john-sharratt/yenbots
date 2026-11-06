@@ -7,11 +7,11 @@ import { bars, line, niceStep, ticks } from "/_/ui/scale.js";
 import { MOST, Toasts } from "/_/ui/toasts.js";
 import { eq, test } from "./harness.js";
 
-test("initials are the first and last words' first letters, marks kept", () => {
-  eq(initials("Nguyễn Thị Yến"), "NY");
+test("initials are the first and last words' first letters, accents kept", () => {
+  eq(initials("Mary Jane Watson"), "MW");
   eq(initials("yen"), "Y");
-  eq(initials("  đặng   văn ấn "), "ĐẤ");
-  eq(initials("ếm út"), "ẾÚ", "written decomposed, answered composed");
+  eq(initials("  élodie   de  la cruz "), "ÉC");
+  eq(initials("émile zola"), "ÉZ", "written decomposed, answered composed");
   eq(initials(""), "");
   eq(initials(null), "");
   eq(initials("123 !"), "", "no letters, no initials");
@@ -20,7 +20,7 @@ test("initials are the first and last words' first letters, marks kept", () => {
 test("a name is given the same palette colour on every page", () => {
   eq(PALETTE.length, 8);
   eq([paletteOf("Yen"), paletteOf(""), paletteOf(null)], ["teal", "coral", "coral"]);
-  eq(paletteOf("Yến"), paletteOf("Yến"), "decomposed or composed, one colour");
+  eq(paletteOf("Zoë"), paletteOf("Zoë"), "decomposed or composed, one colour");
 });
 
 test("a month is whole weeks, Monday first", () => {

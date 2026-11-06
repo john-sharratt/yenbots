@@ -57,7 +57,7 @@ export function boot() {
     api,
     storage: keyOf(keep, "queue"),
     cache: keep,
-    compare: new Intl.Collator(["vi", "en-AU"]).compare,
+    compare: new Intl.Collator("en-AU").compare,
   });
 
   // Once the app is open: its feed, and its waiting writes tried again.

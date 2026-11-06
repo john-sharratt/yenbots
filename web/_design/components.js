@@ -69,19 +69,19 @@ export function buttons() {
 export function fields() {
   return html`${demo(
       "Text field",
-      html`${state("empty", html`<yen-text-field label="Title" placeholder="Phở bò"></yen-text-field>`)}
-      ${state("filled, with a hint", html`<yen-text-field label="Title" .value=${"Bánh xèo"} hint="What the family calls it"></yen-text-field>`)}
-      ${state("hover", html`<yen-text-field label="Title" demo="hover" .value=${"Bánh xèo"}></yen-text-field>`)}
-      ${state("focus", html`<yen-text-field label="Title" demo="focus" .value=${"Bánh xèo"}></yen-text-field>`)}
+      html`${state("empty", html`<yen-text-field label="Title" placeholder="Roast chicken"></yen-text-field>`)}
+      ${state("filled, with a hint", html`<yen-text-field label="Title" .value=${"Apple crumble"} hint="What the family calls it"></yen-text-field>`)}
+      ${state("hover", html`<yen-text-field label="Title" demo="hover" .value=${"Apple crumble"}></yen-text-field>`)}
+      ${state("focus", html`<yen-text-field label="Title" demo="focus" .value=${"Apple crumble"}></yen-text-field>`)}
       ${state("error", html`<yen-text-field label="Serves" type="number" required .value=${"0"} error="Serves must be at least 1"></yen-text-field>`)}
-      ${state("disabled", html`<yen-text-field label="Title" disabled .value=${"Cơm tấm"}></yen-text-field>`)}
+      ${state("disabled", html`<yen-text-field label="Title" disabled .value=${"Shepherd's pie"}></yen-text-field>`)}
       ${state("search", html`<yen-text-field type="search" label="Search" placeholder="Search recipes"></yen-text-field>`)}`,
     )}
     ${demo(
       "Text area",
       html`${state("rest", html`<yen-text-area label="Method" placeholder="Soak the rice noodles…"></yen-text-area>`)}
       ${state("error", html`<yen-text-area label="Method" required error="Method is required"></yen-text-area>`)}
-      ${state("disabled", html`<yen-text-area label="Method" disabled .value=${"Nấu nước dùng trong 6 tiếng."}></yen-text-area>`)}`,
+      ${state("disabled", html`<yen-text-area label="Method" disabled .value=${"Simmer the stock for six hours."}></yen-text-area>`)}`,
     )}
     ${demo(
       "Select",
@@ -137,21 +137,21 @@ export function forms(collection) {
 }
 
 const RECIPES = [
-  { id: "1", title: "Phở bò", serves: 4, minutes: 360 },
-  { id: "2", title: "Bánh xèo", serves: 6, minutes: 45 },
-  { id: "3", title: "Gỏi cuốn", serves: 4, minutes: 30 },
+  { id: "1", title: "Beef stew", serves: 4, minutes: 180 },
+  { id: "2", title: "Apple crumble", serves: 6, minutes: 45 },
+  { id: "3", title: "Pumpkin soup", serves: 4, minutes: 30 },
 ];
 
 export function layout() {
   return html`${demo(
       "Cards",
       html`<yen-grid size="medium">
-        ${state("rest", html`<yen-card><h3>Phở bò</h3><p>Serves 4 · 6 hours</p></yen-card>`)}
-        ${state("a link, hover", html`<yen-card href="#layout" demo="hover"><h3>Bánh xèo</h3><p>Serves 6 · 45 min</p></yen-card>`)}
-        ${state("focus", html`<yen-card href="#layout" demo="focus"><h3>Gỏi cuốn</h3><p>Serves 4</p></yen-card>`)}
+        ${state("rest", html`<yen-card><h3>Beef stew</h3><p>Serves 4 · 3 hours</p></yen-card>`)}
+        ${state("a link, hover", html`<yen-card href="#layout" demo="hover"><h3>Apple crumble</h3><p>Serves 6 · 45 min</p></yen-card>`)}
+        ${state("focus", html`<yen-card href="#layout" demo="focus"><h3>Pumpkin soup</h3><p>Serves 4</p></yen-card>`)}
         ${state(
           "with a picture",
-          html`<yen-card href="#layout"><img slot="media" src=${SAMPLES[0].src} alt="" /><h3>Chè ba màu</h3><p>Dessert</p></yen-card>`,
+          html`<yen-card href="#layout"><img slot="media" src=${SAMPLES[0].src} alt="" /><h3>Pavlova</h3><p>Dessert</p></yen-card>`,
         )}
       </yen-grid>`,
     )}
@@ -177,7 +177,7 @@ export function layout() {
     ${demo(
       "List items: hover, pressed, focus",
       html`${["hover", "pressed", "focus"].map((s) =>
-        state(s, html`<yen-list-item href="#layout" demo=${s} headline="Gỏi cuốn" supporting="Fresh spring rolls"></yen-list-item>`),
+        state(s, html`<yen-list-item href="#layout" demo=${s} headline="Pumpkin soup" supporting="With crusty bread"></yen-list-item>`),
       )}`,
     )}
     ${demo(
@@ -225,7 +225,7 @@ export function overlays() {
           @click=${async () => toast((await ask({ heading: "Send it to Yen?", confirm: "Send" })) ? "Sent" : "Not sent")}
           >ask() from code</yen-button
         >
-        <yen-dialog heading="Delete Phở bò?" confirm="Delete" cancel="Keep it" tone="danger">
+        <yen-dialog heading="Delete Beef stew?" confirm="Delete" cancel="Keep it" tone="danger">
           It goes for everyone in the family. This can't be undone.
         </yen-dialog>
       </div>`,
@@ -263,12 +263,12 @@ export function status() {
     ${demo(
       "Avatars: a picture, or initials on the name's own colour",
       html`<div class="row">
-        ${["Nguyễn Thị Yến", "John Sharratt", "Trần Văn Đức", "Bà Ngoại", "Lê Hoàng Anh"].map(
+        ${["Yen Sharratt", "John Sharratt", "Mary Jane Watson", "Grandma", "Zoë Brontë"].map(
           (n) => html`<yen-avatar name=${n}></yen-avatar>`,
         )}
         <yen-avatar name="Yen" size="small"></yen-avatar>
         <yen-avatar name="Yen" size="large"></yen-avatar>
-        ${state("a picture that won't load", html`<yen-avatar name="Phạm Minh" src="/_design/samples/missing.png"></yen-avatar>`)}
+        ${state("a picture that won't load", html`<yen-avatar name="Pat Morgan" src="/_design/samples/missing.png"></yen-avatar>`)}
       </div>`,
     )}
     ${demo(
@@ -339,7 +339,7 @@ const CHAT = [
   { role: "user", text: "What can I cook tonight with eggs and rice?" },
   {
     role: "assistant",
-    text: "Cơm chiên trứng — egg fried rice. Fry garlic, add yesterday's rice, push it aside and scramble two eggs, then toss with fish sauce and spring onion.",
+    text: "Egg fried rice. Fry garlic, add yesterday's rice, push it aside and scramble two eggs, then toss with soy sauce and spring onion.",
   },
   { role: "user", text: "And something sweet after?" },
   { role: "assistant", text: "", pending: true },
@@ -356,7 +356,7 @@ export function ai() {
         It knows every recipe in this app.
       </yen-chat>`,
     )}
-    ${demo("Drawing a picture: while it draws", html`<yen-draw busy .progress=${0.6} placeholder="A bowl of phở, watercolour"></yen-draw>`)}
-    ${demo("Drawing a picture: drawn", html`<yen-draw .pictures=${SAMPLES.slice(0, 2)} placeholder="A bowl of phở, watercolour"></yen-draw>`)}
+    ${demo("Drawing a picture: while it draws", html`<yen-draw busy .progress=${0.6} placeholder="A bowl of soup, watercolour"></yen-draw>`)}
+    ${demo("Drawing a picture: drawn", html`<yen-draw .pictures=${SAMPLES.slice(0, 2)} placeholder="A bowl of soup, watercolour"></yen-draw>`)}
     ${demo("Drawing a picture: refused", html`<yen-draw error="The AI can't draw that. Try other words."></yen-draw>`)}`;
 }

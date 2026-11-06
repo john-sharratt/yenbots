@@ -3,8 +3,7 @@
 //! (`/_/yen.js`), the design system (`/_/yen.css`, `/_/ui/`), its icons and
 //! faces, the vendored modules and the site's own files — an app's theme at
 //! `/_/theme/<id>.css` ([`theme`](super::theme)), and the design system's
-//! catalogue at `/_design` with its Vietnamese test page at
-//! `/_design/vietnamese` (§8.5, §8.7).
+//! catalogue at `/_design` (§8.5).
 
 use std::sync::Arc;
 
@@ -57,28 +56,19 @@ pub async fn design(headers: HeaderMap) -> Response {
     serve("_design/index.html", &headers)
 }
 
-/// `/_design/…`: the catalogue's own files, and its pages by name —
-/// `/_design/vietnamese` is `vietnamese.html`.
+/// `/_design/…`: the catalogue's own files.
 pub async fn design_file(Path(path): Path<String>, headers: HeaderMap) -> Response {
     if !plain(&path) {
         return (StatusCode::NOT_FOUND, "no such file").into_response();
     }
-    let named = if path.rsplit('/').next().unwrap_or("").contains('.') {
-        path
-    } else {
-        format!("{path}.html")
-    };
-    serve(&format!("_design/{named}"), &headers)
+    serve(&format!("_design/{path}"), &headers)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use include_dir::File;
     use regex::Regex;
     use sha2::{Digest, Sha256};
-    use unicode_normalization::UnicodeNormalization;
 
     use super::*;
 
@@ -93,7 +83,6 @@ mod tests {
             "_/ui/components/index.js",
             "_/icons/sprite.svg",
             "_design/index.html",
-            "_design/vietnamese.html",
         ] {
             assert!(WEB.get_file(path).is_some(), "{path}");
         }
@@ -164,86 +153,30 @@ mod tests {
         assert!(seen > 20, "the icons used are found: {seen}");
     }
 
-    /// The code points `unicode-range` names: `U+0102-0103, U+0323` is 0x102,
-    /// 0x103 and 0x323.
-    fn ranges(text: &str) -> Vec<(u32, u32)> {
-        text.split(',')
-            .map(|r| {
-                let r = r.trim().trim_start_matches("U+");
-                let (lo, hi) = r.split_once('-').unwrap_or((r, r));
-                (
-                    u32::from_str_radix(lo, 16).unwrap(),
-                    u32::from_str_radix(hi, 16).unwrap(),
-                )
-            })
-            .collect()
-    }
-
-    /// **Both faces take every Vietnamese letter (§8.7)**: at each weight,
-    /// the ranges `fonts.css` declares for a face cover every letter — the
-    /// twelve vowels with each tone, d and đ, small and capital, 148 in all —
-    /// composed, so no letter falls through to another face.
-    #[test]
-    fn both_faces_cover_every_vietnamese_letter() {
-        let mut faces: BTreeMap<(String, String), Vec<(u32, u32)>> = BTreeMap::new();
-        for block in text("_/ui/fonts.css").split("@font-face {").skip(1) {
-            let value = |key: &str| {
-                block
-                    .split(&format!("{key}:"))
-                    .nth(1)
-                    .unwrap()
-                    .split(';')
-                    .next()
-                    .unwrap()
-                    .trim()
-                    .to_string()
-            };
-            let face = (value("font-family"), value("font-weight"));
-            faces
-                .entry(face)
-                .or_default()
-                .extend(ranges(&value("unicode-range")));
-        }
-        assert_eq!(
-            faces.len(),
-            5,
-            "Be Vietnam Pro at four weights, Fraunces at one: {:?}",
-            faces.keys()
-        );
-        let mut letters = Vec::new();
-        for base in "aăâeêioôơuưyAĂÂEÊIOÔƠUƯY".chars() {
-            for tone in ["", "\u{300}", "\u{301}", "\u{309}", "\u{303}", "\u{323}"] {
-                let composed: String = format!("{base}{tone}").nfc().collect();
-                assert_eq!(composed.chars().count(), 1, "{composed}");
-                letters.push(composed.chars().next().unwrap());
-            }
-        }
-        letters.extend(['d', 'D', 'đ', 'Đ']);
-        assert_eq!(letters.len(), 148);
-        for (face, covered) in &faces {
-            for l in &letters {
-                let cp = u32::from(*l);
-                assert!(
-                    covered.iter().any(|(lo, hi)| (*lo..=*hi).contains(&cp)),
-                    "{face:?} lacks {l} U+{cp:04X}"
-                );
-            }
-        }
-    }
-
-    /// **Every face the type names is embedded**: each `url(…)` in
-    /// `fonts.css` is a file under `web/_/fonts/`.
+    /// **The faces `fonts.css` names are the faces embedded**: each `url(…)`
+    /// is a file under `web/_/fonts/`, and every font file there is named.
     #[test]
     fn every_face_is_embedded() {
-        let urls: Vec<&str> = text("_/ui/fonts.css")
+        let mut urls: Vec<&str> = text("_/ui/fonts.css")
             .split("url(\"../fonts/")
             .skip(1)
             .map(|s| s.split('"').next().unwrap())
             .collect();
-        assert_eq!(urls.len(), 15);
-        for u in urls {
-            assert!(WEB.get_file(format!("_/fonts/{u}")).is_some(), "{u}");
-        }
+        urls.sort();
+        let mut files: Vec<String> = WEB
+            .get_dir("_/fonts")
+            .unwrap()
+            .files()
+            .map(|f| f.path().file_name().unwrap().to_string_lossy().to_string())
+            .filter(|n| n.ends_with(".woff2"))
+            .collect();
+        files.sort();
+        assert_eq!(
+            urls.len(),
+            10,
+            "Be Vietnam Pro at four weights, Fraunces at one, two ranges each"
+        );
+        assert_eq!(urls, files);
     }
 
     fn digest(path: &str) -> String {

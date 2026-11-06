@@ -15,7 +15,7 @@ import { framed, readTokens } from "./tokens.js";
 const SECTIONS = [
   ["colour", "Colour", "What each colour is for, and the palette by name.", colours],
   ["surfaces", "Surfaces", "The five an app may choose for its theme.", surfaces],
-  ["type", "Type", "Two faces, both with every Vietnamese letter.", type],
+  ["type", "Type", "Two faces: one for text, one for headings.", type],
   ["space", "Space and density", "", space],
   ["corners", "Corners", "", corners],
   ["lift", "Lift", "", lift],
@@ -137,8 +137,7 @@ class YenCatalogue extends YenElement {
     return html`<div class="bar">
         <h1>
           The design system
-          <small>${this.themed ? html`In the theme of <strong>${this.themed}</strong>` : "Yen Bots' own look"} ·
-            <a href="/_design/vietnamese">Vietnamese test page</a></small>
+          <small>${this.themed ? html`In the theme of <strong>${this.themed}</strong>` : "Yen Bots' own look"}</small>
         </h1>
         ${this.choice("Light or dark", this.scheme, [["both", "Both"], ["light", "Light"], ["dark", "Dark"]], (v) => (this.scheme = v))}
         ${this.choice("Width", this.width, [["phone", "Phone"], ["desktop", "Desktop"]], (v) => (this.width = v))}

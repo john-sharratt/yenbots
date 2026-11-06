@@ -41,14 +41,14 @@ export function surfaces() {
 
 const SIZES = ["3xl", "2xl", "xl", "lg", "md", "sm", "xs"];
 const WEIGHTS = ["regular", "medium", "semibold", "bold"];
-const LINE = "Bữa cơm gia đình — the family's dinner";
+const LINE = "Sunday dinner — the family's table";
 
 export function type() {
   return html`<div class="demo">
       <h3>Headings: the display face (Fraunces), or the text face with <code>type: text</code></h3>
-      <h1>Công thức của Bà — Grandma's recipes</h1>
-      <h2>Nhắc việc hôm nay — Today's reminders</h2>
-      <h3>Danh sách đi chợ</h3>
+      <h1>Grandma's recipes</h1>
+      <h2>Today's reminders</h2>
+      <h3>The shopping list</h3>
     </div>
     <div class="demo">
       <h3>Sizes</h3>
@@ -71,8 +71,8 @@ export function type() {
     <div class="demo">
       <h3>Body, at its measure (<code>--yen-measure</code>) and leading (<code>--yen-leading</code>)</h3>
       <p>
-        Mỗi tối thứ Sáu cả nhà quây quần bên mâm cơm: canh chua cá lóc, thịt kho trứng, rau muống xào tỏi. Every Friday
-        the whole family gathers around the tray — sour fish soup, caramelised pork with eggs, morning glory with garlic.
+        Every Friday the whole family gathers around the table — roast chicken, a tray of potatoes, the good gravy and
+        whatever the garden gave that week. Someone always brings dessert; nobody ever admits to the last slice.
       </p>
       <p><small>Small print, in the secondary ink: <code>--yen-ink-2</code>.</small></p>
     </div>`;
