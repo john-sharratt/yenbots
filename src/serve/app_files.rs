@@ -9,6 +9,8 @@
 //!   and the platform's look, `/_/yen.css`, then the app's theme (§8.5),
 //!   before anything of the app's own.
 //! - The manifest and the workflows are the server's, and are not served.
+//! - An app whose files in the working tree the check refused is served
+//!   from the commit it last passed at ([`FilesAt`]).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,6 +23,8 @@ use super::asset::respond;
 use super::reply::internal;
 use super::theme::href;
 use crate::app::App;
+use crate::apps::FilesAt;
+use crate::git::git_bytes;
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "no such file").into_response()
@@ -73,22 +77,43 @@ fn page(id: &str, theme: &str, bytes: Vec<u8>, headers: &HeaderMap) -> Response 
     respond("index.html", html.as_bytes(), headers)
 }
 
-/// The file `rel` of app `id`, or its page, with its theme at `theme`.
-fn read(dir: PathBuf, id: &str, theme: &str, rel: &str, headers: &HeaderMap) -> Response {
+/// Where app `id`'s files are read from: its folder in the working tree, or
+/// the commit it last passed the check at.
+struct Source {
+    root: PathBuf,
+    id: String,
+    at: FilesAt,
+}
+
+impl Source {
+    fn read(&self, rel: &str) -> Option<Vec<u8>> {
+        match &self.at {
+            FilesAt::Tree => std::fs::read(self.root.join("apps").join(&self.id).join(rel)).ok(),
+            FilesAt::Commit(commit) => git_bytes(
+                &self.root,
+                &["show", &format!("{commit}:apps/{}/{rel}", self.id)],
+            )
+            .ok(),
+        }
+    }
+}
+
+/// The file `rel` of the app, or its page, with its theme at `theme`.
+fn read(src: &Source, theme: &str, rel: &str, headers: &HeaderMap) -> Response {
     let rel = if rel.is_empty() { "index.html" } else { rel };
-    match std::fs::read(dir.join(rel)) {
-        Ok(bytes) if rel == "index.html" => page(id, theme, bytes, headers),
-        Ok(bytes) => respond(rel, &bytes, headers),
-        Err(_) if is_page(rel) => match std::fs::read(dir.join("index.html")) {
-            Ok(bytes) => page(id, theme, bytes, headers),
-            Err(_) => not_found(),
+    match src.read(rel) {
+        Some(bytes) if rel == "index.html" => page(&src.id, theme, bytes, headers),
+        Some(bytes) => respond(rel, &bytes, headers),
+        None if is_page(rel) => match src.read("index.html") {
+            Some(bytes) => page(&src.id, theme, bytes, headers),
+            None => not_found(),
         },
-        Err(_) => not_found(),
+        None => not_found(),
     }
 }
 
 async fn serve(s: Arc<App>, id: String, rel: String, headers: HeaderMap) -> Response {
-    let Some(manifest) = s.apps.get(&id) else {
+    let (Some(manifest), Some(at)) = (s.apps.get(&id), s.apps.files_at(&id)) else {
         return not_found();
     };
     if !(rel.is_empty() || served(&rel)) {
@@ -98,8 +123,12 @@ async fn serve(s: Arc<App>, id: String, rel: String, headers: HeaderMap) -> Resp
         Ok(theme) => theme,
         Err(e) => return internal(e),
     };
-    let dir = s.apps.dir().join(&id);
-    tokio::task::spawn_blocking(move || read(dir, &id, &theme, &rel, &headers))
+    let src = Source {
+        root: s.apps.root().to_path_buf(),
+        id,
+        at,
+    };
+    tokio::task::spawn_blocking(move || read(&src, &theme, &rel, &headers))
         .await
         .unwrap_or_else(internal)
 }

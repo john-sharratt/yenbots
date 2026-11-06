@@ -1,8 +1,9 @@
 //! Publishing (`candle/docs/yenbot_app_host.md` §5.3, §5.4): an edit is a
-//! commit on `main`, and the site makes it live by fast-forwarding its live
-//! checkout ([`live`]) — woken by the gateway's bus on every push
-//! ([`bus`]), and every [`POLL`] for a push made outside Zen. Each move is
-//! told to the open pages ([`Reloads`]), which reload themselves.
+//! commit on `main`, let through by the gate ([`crate::gate`]), and the site
+//! makes it live by fast-forwarding its live checkout ([`live`]) — woken by
+//! the gateway's bus on every push ([`bus`]), and every [`POLL`] for a push
+//! made outside Zen. Each move is told to the open pages ([`Reloads`]),
+//! which reload themselves.
 
 pub mod bus;
 pub mod live;
@@ -61,10 +62,11 @@ fn reason(wake: Wake) -> Option<String> {
 }
 
 /// Follow `origin/main` into `live` for as long as the site runs: on each
-/// wake from the bus at `url` (with `key`), and every [`POLL`].
+/// wake from the bus at `url` (with `key`), and every [`POLL`]; and answer
+/// the gate's asks against `live`'s repository.
 pub fn start(live: PathBuf, url: String, key: String, reloads: Reloads) {
     let (tx, mut rx) = mpsc::channel(32);
-    tokio::spawn(bus::listen(url, key, tx));
+    tokio::spawn(bus::listen(url, key, live.clone(), tx));
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(POLL);
         loop {

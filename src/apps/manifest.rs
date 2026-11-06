@@ -129,8 +129,14 @@ fn one() -> u32 {
     1
 }
 
-/// The manifest's fields this part of the platform reads; the rest of the
-/// manifest (tile, schedules, …) is read where it is used.
+/// A job the manifest declares (§9.2): whatever makes it, it runs the
+/// workflow `run` names. The check holds `run` to a file in `workflows/`.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct Schedule {
+    pub run: String,
+}
+
+/// The manifest's fields this part of the platform reads.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Manifest {
     pub id: String,
@@ -139,8 +145,17 @@ pub struct Manifest {
     pub description: String,
     #[serde(default)]
     pub status: Status,
+    /// The app's picture on the landing page, a path in the art library
+    /// without its extension (`library/tiles/bell-coral`, §15).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile: Option<String>,
+    /// The edition of `docs/building-an-app.md` the app was built to (§17.3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guide: Option<u32>,
     #[serde(default)]
     pub collections: BTreeMap<String, Collection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schedules: Vec<Schedule>,
     /// The app's own look (§8.5), checked to read in both modes.
     #[serde(default)]
     pub theme: Theme,

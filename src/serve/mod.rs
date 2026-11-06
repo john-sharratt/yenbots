@@ -473,12 +473,16 @@ mod tests {
     #[tokio::test]
     async fn an_apps_files_and_pages_are_served() {
         let dir = tempfile::tempdir().unwrap();
-        let home = dir.path().join("home");
+        let home = dir.path().join("apps").join("home");
         std::fs::create_dir_all(home.join("workflows")).unwrap();
         std::fs::write(home.join("app.yaml"), HOME).unwrap();
         std::fs::write(home.join("index.html"), "<head></head><yen-app></yen-app>").unwrap();
         std::fs::write(home.join("app.js"), "export {};").unwrap();
-        std::fs::write(home.join("workflows").join("remind.js"), "x").unwrap();
+        std::fs::write(
+            home.join("workflows").join("remind.js"),
+            "export default async function remind() {}",
+        )
+        .unwrap();
         let app = serving(Apps::open(dir.path()));
         let theme = theme::href("home", &Theme::default()).unwrap();
         let page = format!(
@@ -547,6 +551,33 @@ mod tests {
         let b = theme::href("home", &Theme::default()).unwrap();
         assert!(a.starts_with("/_/theme/home.css?v="), "{a}");
         assert_ne!(a, b);
+    }
+
+    /// **An admin reads an app's last check**; an app that is not there is
+    /// said so, and no one else may ask.
+    #[tokio::test]
+    async fn an_admin_reads_an_apps_last_check() {
+        let app = app();
+        let yen = Some(("1", "yen@example.com"));
+        let (status, body) = get_as(&app, "/api/v1/admin/apps/home/check", yen).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body,
+            json!({"app": "home", "ok": true, "commit": null, "serving": null, "refusals": []})
+        );
+        let (status, body) = get_as(&app, "/api/v1/admin/apps/nope/check", yen).await;
+        assert_eq!(
+            (status, body["error"].clone()),
+            (StatusCode::NOT_FOUND, json!("no_app"))
+        );
+        get_as(&app, "/api/v1/me", Some(("2", "c@example.com"))).await;
+        let (status, _) = get_as(
+            &app,
+            "/api/v1/admin/apps/home/check",
+            Some(("2", "c@example.com")),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
     /// **The catalogue and its files are served.**

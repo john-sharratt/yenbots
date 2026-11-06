@@ -10,8 +10,11 @@
 mod accounts;
 mod app;
 mod apps;
+mod check;
 mod config;
 mod data;
+mod gate;
+mod git;
 mod logs;
 mod publish;
 mod serve;
@@ -76,7 +79,7 @@ async fn main() -> Result<()> {
         .trim()
         .to_string();
     let reloads = Reloads::new();
-    let apps = Apps::open(cfg.live_dir.join("apps"));
+    let apps = Apps::open(cfg.live_dir.clone());
     {
         // Each move of the live checkout reads the apps again.
         let (apps, mut moved) = (apps.clone(), reloads.subscribe());

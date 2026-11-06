@@ -4,9 +4,10 @@
 //! origin is refused and logged, and the site keeps serving what it had.
 
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::{anyhow, bail, Result};
+
+use crate::git::git;
 
 /// What a fast-forward did.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,18 +16,6 @@ pub enum Moved {
     Unchanged,
     /// Moved from one commit to the other.
     To { from: String, to: String },
-}
-
-fn git(dir: &Path, args: &[&str]) -> Result<String> {
-    let out = Command::new("git").arg("-C").arg(dir).args(args).output()?;
-    if !out.status.success() {
-        bail!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        );
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 /// Fetch `origin/main` into `live` and fast-forward to it.
@@ -67,6 +56,8 @@ pub fn fast_forward(live: &Path) -> Result<Moved> {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
 
     fn run(dir: &Path, args: &[&str]) -> String {

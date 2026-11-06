@@ -226,6 +226,29 @@ pub async fn apps_list(State(s): State<Arc<App>>, method: Method, headers: Heade
     .await
 }
 
+/// `GET /admin/apps/{id}/check`: the app's last check on load (§17.4) — ok,
+/// or each refusal with its rule, file and line, and the commit served
+/// meanwhile. An app refused the first time it was seen, and so not served,
+/// is answered too.
+pub async fn apps_check(
+    State(s): State<Arc<App>>,
+    Path(id): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    as_admin(s, method, headers, move |s, _| match s.apps.checked(&id) {
+        None => no_app(&id),
+        Some(c) => ok(json!({
+            "app": id,
+            "ok": c.refusals.is_empty(),
+            "commit": c.commit,
+            "serving": c.serving,
+            "refusals": c.refusals,
+        })),
+    })
+    .await
+}
+
 pub async fn apps_visibility(
     State(s): State<Arc<App>>,
     Path(id): Path<String>,

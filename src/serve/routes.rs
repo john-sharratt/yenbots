@@ -294,6 +294,11 @@ pub const ROUTES: &[Route] = &[
         params: &[], body: &[], handler: || get(admin::apps_list),
     },
     Route {
+        method: "GET", path: "/api/v1/admin/apps/{id}/check", page: "admin-apps",
+        summary: "The app's last check: ok, or each refusal with its rule, file and line, and the commit served meanwhile.",
+        params: &[path("id", "the app's id")], body: &[], handler: || get(admin::apps_check),
+    },
+    Route {
         method: "PUT", path: "/api/v1/admin/apps/{id}/visibility", page: "admin-apps",
         summary: "Make an app public or private.",
         params: &[path("id", "the app's id")],

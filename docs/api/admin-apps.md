@@ -25,6 +25,32 @@ GET /api/v1/admin/apps
            "access": {"private": true, "position": null, "shares": ["account:2207…"]}}]}
 ```
 
+### `GET /api/v1/admin/apps/{id}/check`
+
+The app's last check (`docs/check.md`), made each time the live checkout
+moves: `ok`, or each refusal with its rule, file and line. A change Zen makes
+is checked by the gate before it lands; this is the check of what arrived
+without one. While the app as it now is stands refused, `serving` names the
+commit whose version is served instead — `null` for an app refused the first
+time it was seen, which is not served at all.
+
+| Parameter | In | |
+|---|---|---|
+| `id` | path | the app's id |
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `no_app` | the live checkout holds no such app |
+
+```http
+GET /api/v1/admin/apps/recipes/check
+
+200
+{"app": "recipes", "ok": false, "commit": "9b1e…", "serving": "4f1c…",
+ "refusals": [{"path": "apps/recipes/style.css", "line": 2, "rule": "tokens",
+               "message": "uses the colour `#c2375b`; use a token: var(--yen-accent), var(--yen-ink), …"}]}
+```
+
 ### `PUT /api/v1/admin/apps/{id}/visibility`
 
 Make an app public or private.
