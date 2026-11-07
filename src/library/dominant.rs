@@ -22,14 +22,15 @@ pub const PALETTE: [&str; 8] = [
 
 /// The edition of how a colour is read, raised whenever the reading
 /// changes, so the colours cached by the last one are read again.
-pub const EDITION: u32 = 2;
+pub const EDITION: u32 = 3;
 
 /// A pixel this far between its highest and lowest channel is saturated.
 const SATURATED: u8 = 48;
 
-/// A pixel whose highest channel reaches this is pale: a ground, not a
-/// subject.
-const PALE: u8 = 224;
+/// A pixel whose lowest channel reaches this is pale — cream, beige, a
+/// pastel: a ground, not a subject. Every palette colour has a channel at 93
+/// or below.
+const PALE: u8 = 144;
 
 /// The dominant colour of `img`; `None` for a picture with no opaque pixel.
 pub fn dominant(img: &RgbaImage) -> Option<Colour> {
@@ -51,7 +52,7 @@ pub fn dominant(img: &RgbaImage) -> Option<Colour> {
         };
         add(&mut all);
         let (hi, lo) = (r.max(g).max(b), r.min(g).min(b));
-        if hi - lo >= SATURATED && hi < PALE {
+        if hi - lo >= SATURATED && lo < PALE {
             add(&mut vivid);
         }
     }
@@ -111,6 +112,7 @@ mod tests {
         let img = picture(&[
             ([250, 244, 236, 255], 10), // cream ground
             ([228, 216, 176, 255], 8),  // a beige wall: saturated, but pale
+            ([222, 209, 169, 255], 8),  // and its shade
             ([212, 87, 61, 255], 3),    // coral
             ([210, 85, 60, 255], 1),    // coral, same bucket
             ([47, 116, 192, 255], 2),   // sky
