@@ -1,0 +1,14 @@
+id: picture-maker
+name: Pictures
+description: Describe a picture, see it drawn, and keep the ones you like.
+tile: library/tiles/camera-rose
+status: draft
+guide: 1
+ai: true
+collections:
+  pictures:
+    scope: private
+    fields:
+      prompt: { type: text, required: true, max: 1000 }
+      file: { type: file, required: true }
+    search: [prompt]

@@ -112,4 +112,6 @@ pub fn told(refusals: &[Refusal]) -> String {
 }
 
 #[cfg(test)]
+mod templates_tests;
+#[cfg(test)]
 pub mod tests;

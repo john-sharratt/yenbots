@@ -1,0 +1,12 @@
+id: blank
+name: Notes
+description: A page of notes, to build anything from.
+tile: library/tiles/notebook-rose
+status: draft
+guide: 1
+collections:
+  notes:
+    scope: private
+    fields:
+      text: { type: text, required: true, max: 500 }
+    search: [text]

@@ -1,0 +1,15 @@
+id: list
+name: Shopping
+description: A shared list to add to, tick off and put in order.
+tile: library/tiles/basket-teal
+status: draft
+guide: 1
+collections:
+  items:
+    scope: shared
+    fields:
+      text: { type: text, required: true, max: 200 }
+      done: { type: bool, default: false }
+      position: { type: number, default: 0 }
+    search: [text]
+    index: [position]

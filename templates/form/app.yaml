@@ -1,0 +1,18 @@
+id: form
+name: Party poll
+description: A few questions everyone answers, and a page that sums the answers up.
+tile: library/tiles/checklist-teal
+status: draft
+guide: 1
+collections:
+  answers:
+    scope: shared
+    fields:
+      name: { type: text, required: true, max: 80 }
+      day: { type: text, required: true, max: 40 }
+      rating: { type: number, required: true, min: 1, max: 5 }
+      bringing: { type: text, max: 200 }
+    index: [day]
+    roles:
+      read: [everyone]
+      write: [everyone]

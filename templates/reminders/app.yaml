@@ -1,0 +1,18 @@
+id: reminders
+name: Reminders
+description: Things to remember, with a ping when each is due.
+tile: library/tiles/bell-coral
+status: draft
+guide: 1
+notify: true
+collections:
+  reminders:
+    scope: private
+    fields:
+      title: { type: text, required: true, max: 120 }
+      due_ms: { type: time, required: true }
+    index: [due_ms]
+schedules:
+  - from: reminders
+    at: due_ms
+    run: remind

@@ -1,0 +1,18 @@
+id: daily-digest
+name: Today
+description: Each morning, a note of what is on that day.
+tile: library/tiles/sun-amber
+status: draft
+guide: 1
+notify: true
+collections:
+  items:
+    scope: shared
+    fields:
+      title: { type: text, required: true, max: 120 }
+      due_ms: { type: time, required: true }
+    index: [due_ms]
+schedules:
+  - every: daily 07:00
+    run: morning
+    catch_up: true

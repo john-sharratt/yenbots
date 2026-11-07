@@ -1,0 +1,15 @@
+id: collection
+name: Recipes
+description: Cards with a photo, tags to sort them, and search to find one.
+tile: library/tiles/pot-sage
+status: draft
+guide: 1
+collections:
+  items:
+    scope: shared
+    fields:
+      title: { type: text, required: true, max: 120 }
+      notes: { type: text, long: true, max: 10000 }
+      tags: { type: list, of: text, max: 12 }
+      photo: { type: file }
+    search: [title, notes, tags]

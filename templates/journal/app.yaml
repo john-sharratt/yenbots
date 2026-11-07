@@ -1,0 +1,15 @@
+id: journal
+name: Journal
+description: A dated entry a day, with a photo when there is one.
+tile: library/tiles/notebook-rose
+status: draft
+guide: 1
+collections:
+  entries:
+    scope: private
+    fields:
+      day: { type: date, required: true }
+      text: { type: text, required: true, long: true, max: 5000 }
+      photo: { type: file }
+    search: [text]
+    index: [day]

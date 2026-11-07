@@ -1,0 +1,14 @@
+id: tracker
+name: Savings
+description: A number logged now and then, and a chart of how it goes.
+tile: library/tiles/piggy-amber
+status: draft
+guide: 1
+collections:
+  entries:
+    scope: private
+    fields:
+      day: { type: date, required: true }
+      value: { type: number, required: true }
+      note: { type: text, max: 200 }
+    index: [day]

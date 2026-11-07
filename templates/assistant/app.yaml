@@ -1,0 +1,7 @@
+id: assistant
+name: Homework helper
+description: A chat with the AI, told by the app how to answer.
+tile: library/tiles/heart-coral
+status: draft
+guide: 1
+ai: true

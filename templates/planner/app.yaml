@@ -1,0 +1,15 @@
+id: planner
+name: Planner
+description: What is on, as a week and as a month, for the whole family.
+tile: library/tiles/plant-sage
+status: draft
+guide: 1
+collections:
+  plans:
+    scope: shared
+    fields:
+      title: { type: text, required: true, max: 120 }
+      day: { type: date, required: true }
+      time: { type: text, max: 5 }
+      notes: { type: text, long: true, max: 2000 }
+    index: [day]
