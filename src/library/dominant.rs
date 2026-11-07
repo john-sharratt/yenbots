@@ -1,11 +1,12 @@
 //! A picture's dominant colour, and the palette colour it is nearest
 //! (`tokens.css`), for searching the library by colour (§15.3).
 //!
-//! A flat illustration is mostly its soft ground, so the colour that says
-//! what a picture *is* comes from its saturated pixels: the most common
-//! colour among them, read in buckets of 16 levels a channel and answered as
-//! the bucket's mean. A picture with no saturated pixels — a grey texture —
-//! is read over all of them. Transparent pixels are never read.
+//! A flat illustration is mostly its soft ground — cream, beige, a pale wall
+//! — so the colour that says what a picture *is* comes from its vivid
+//! pixels: saturated, and not pale. The most common colour among them is
+//! read in buckets of 16 levels a channel and answered as the bucket's mean.
+//! A picture with no vivid pixels — a grey texture — is read over all of
+//! them. Transparent pixels are never read.
 
 use std::collections::BTreeMap;
 
@@ -19,8 +20,16 @@ pub const PALETTE: [&str; 8] = [
     "coral", "rose", "amber", "sage", "teal", "sky", "violet", "slate",
 ];
 
+/// The edition of how a colour is read, raised whenever the reading
+/// changes, so the colours cached by the last one are read again.
+pub const EDITION: u32 = 2;
+
 /// A pixel this far between its highest and lowest channel is saturated.
 const SATURATED: u8 = 48;
+
+/// A pixel whose highest channel reaches this is pale: a ground, not a
+/// subject.
+const PALE: u8 = 224;
 
 /// The dominant colour of `img`; `None` for a picture with no opaque pixel.
 pub fn dominant(img: &RgbaImage) -> Option<Colour> {
@@ -41,7 +50,8 @@ pub fn dominant(img: &RgbaImage) -> Option<Colour> {
             e.3 += u64::from(b);
         };
         add(&mut all);
-        if r.max(g).max(b) - r.min(g).min(b) >= SATURATED {
+        let (hi, lo) = (r.max(g).max(b), r.min(g).min(b));
+        if hi - lo >= SATURATED && hi < PALE {
             add(&mut vivid);
         }
     }
@@ -100,6 +110,7 @@ mod tests {
     fn the_subject_not_the_ground_is_dominant() {
         let img = picture(&[
             ([250, 244, 236, 255], 10), // cream ground
+            ([228, 216, 176, 255], 8),  // a beige wall: saturated, but pale
             ([212, 87, 61, 255], 3),    // coral
             ([210, 85, 60, 255], 1),    // coral, same bucket
             ([47, 116, 192, 255], 2),   // sky

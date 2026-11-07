@@ -4,9 +4,10 @@
 //!
 //! On load, and each time the checkout moves, every picture is sized to its
 //! kind's sizes ([`sizing`]) and its dominant colour read ([`dominant`]);
-//! the results are cached under `<data_dir>/library/<digest>-q<quality>/`,
-//! keyed by the picture's content and its encoding, so a picture is sized
-//! once whatever moves around it.
+//! the results are cached under
+//! `<data_dir>/library/<digest>-q<quality>-c<edition>/`, keyed by the
+//! picture's content, its encoding and how its colour is read, so a picture
+//! is sized once whatever moves around it.
 //! A catalogue that does not parse leaves the library as it was, and a line
 //! whose picture is missing or unreadable is left out; the gate refuses
 //! both before they land ([`check`]).
@@ -27,7 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::apps::theme::colour::Colour;
 use catalogue::Entry;
-use dominant::{dominant, nearest};
+use dominant::{dominant, nearest, EDITION};
 use kind::Kind;
 use sizing::{decode, sized, webp, QUALITY};
 
@@ -117,10 +118,11 @@ pub struct Library {
     pictures: Arc<RwLock<Arc<BTreeMap<String, Picture>>>>,
 }
 
-/// The cache folder of the picture `digest`: named for the encoding too, so a
-/// change of [`QUALITY`] sizes every picture again.
+/// The cache folder of the picture `digest`: named for the encoding and the
+/// colour's reading too, so a change of [`QUALITY`] or of the reading's
+/// [`EDITION`] sizes and reads every picture again.
 fn cache_name(digest: &str) -> String {
-    format!("{digest}-q{}", QUALITY as u32)
+    format!("{digest}-q{}-c{EDITION}", QUALITY as u32)
 }
 
 /// The cached file of size `w`×`h`.
