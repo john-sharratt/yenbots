@@ -2,8 +2,9 @@
 //! page at `/`, everything under `web/_/` at `/_/…` — the framework
 //! (`/_/yen.js`), the design system (`/_/yen.css`, `/_/ui/`), its icons and
 //! faces, the vendored modules and the site's own files — an app's theme at
-//! `/_/theme/<id>.css` ([`theme`](super::theme)), and the design system's
-//! catalogue at `/_design` (§8.5).
+//! `/_/theme/<id>.css` ([`theme`](super::theme)), the site's manifest at
+//! `/_/manifest.webmanifest` ([`install`](super::install)), and the design
+//! system's catalogue at `/_design` (§8.5).
 
 use std::sync::Arc;
 
@@ -13,13 +14,14 @@ use axum::response::{IntoResponse, Response};
 use include_dir::{include_dir, Dir};
 
 use super::asset::respond;
+use super::install::manifest;
 use super::theme::stylesheet;
 use crate::app::App;
 
 static WEB: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/web");
 
 /// The embedded file at `path`, relative to `web/`.
-fn serve(path: &str, headers: &HeaderMap) -> Response {
+pub fn serve(path: &str, headers: &HeaderMap) -> Response {
     match WEB.get_file(path) {
         Some(file) => respond(path, file.contents(), headers),
         None => (StatusCode::NOT_FOUND, "no such file").into_response(),
@@ -47,6 +49,9 @@ pub async fn platform_file(
     }
     if let Some(file) = path.strip_prefix("theme/") {
         return stylesheet(&s, file, &headers);
+    }
+    if path == "manifest.webmanifest" {
+        return manifest(State(s), headers).await;
     }
     serve(&format!("_/{path}"), &headers)
 }

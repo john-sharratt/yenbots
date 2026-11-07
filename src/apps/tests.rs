@@ -6,7 +6,9 @@ use std::process::Command;
 use jiff::tz::TimeZone;
 
 use super::*;
+use crate::config::Config;
 use crate::data::changes::Changes;
+use crate::notify::push::Pusher;
 use crate::reshape::migrate::migrate;
 use crate::workflows::run::Env;
 use crate::workflows::sources::in_tree;
@@ -183,6 +185,12 @@ fn an_app_waits_for_its_records_migration() {
         store: store.clone(),
         changes: Changes::new(),
         zone: TimeZone::UTC,
+        cfg: Config::from_yaml(
+            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
+            Path::new("."),
+        )
+        .unwrap(),
+        pusher: Pusher::channel().0,
     };
     let src = in_tree(live.path(), "notes").unwrap();
     assert_eq!(migrate(&env, &pending[0], &src, "notes", 1).unwrap(), 1);

@@ -40,6 +40,13 @@ webp = { version = "0.3", default-features = false }
 # Yen's time zone, for the jobs' repeat rules (src/jobs/rule.rs): the time
 # zone database is compiled in, so every machine reads a rule the same way.
 jiff = { version = "0.2.28", features = ["tzdb-bundle-always"] }
+# Web Push (src/notify/): the VAPID key and its ES256 tokens, a message
+# encrypted to each device (RFC 8291), and the HTTPS call to its push service.
+p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }
+hkdf = "0.12.4"
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+ureq = "2.12.1"
 
 [build-dependencies]
 sha2 = "0.10.9"

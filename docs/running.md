@@ -13,6 +13,7 @@
 | Live files | `D:\yenbot\live` — a checkout of `origin/main`, never edited by hand; cloned with `git clone -c core.autocrlf=false git@github.com:john-sharratt/yenbots.git D:\yenbot\live` so it serves what was committed, byte for byte |
 | Bus key | `D:\yenbot\secrets\gateway.key` — yenbot's service key on the gateway (`cluster.service_keys` in `web/web.yaml`), 64 hex digits |
 | Backups | `D:\yenbot\data\backups\yenbot-YYYY-MM-DD.db`, one a day at 03:00 in Yen's time zone and named for her day, the newest 14 — the platform's `backup` job, run on start when it was missed |
+| Push key | the site's VAPID key, made at first start and kept in the store (`push_keys`); a new key would unsubscribe every device, so it is never replaced |
 | Time zone | `time_zone` in `yenbot.yaml`, `Australia/Sydney`: repeat rules, `ctx.time` and the backups' names read it |
 
 ## Publishing

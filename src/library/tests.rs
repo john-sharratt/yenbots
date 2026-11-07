@@ -66,12 +66,21 @@ fn the_library_sizes_every_picture() {
         load_from_memory_with_format(&std::fs::read(file).unwrap(), ImageFormat::WebP).unwrap();
     assert_eq!((back.width(), back.height()), (256, 256));
     assert_eq!(lib.file("tiles", "bell-coral-300.webp"), None);
-    assert_eq!(lib.file("tiles", "bell-coral-256.png"), None);
     assert_eq!(lib.file("stickers", "bell-coral-256.webp"), None);
+    // A tile is a PNG too, for the home screen's icon.
+    let png = lib.file("tiles", "bell-coral-256.png").unwrap();
+    let back =
+        load_from_memory_with_format(&std::fs::read(png).unwrap(), ImageFormat::Png).unwrap();
+    assert_eq!((back.width(), back.height()), (256, 256));
 
     let star = lib.get("stickers/star").unwrap();
     assert_eq!(star.palette, "sky");
     assert!(lib.file("stickers", "star-128.webp").unwrap().is_file());
+    assert_eq!(
+        lib.file("stickers", "star-128.png"),
+        None,
+        "a sticker is not"
+    );
 }
 
 #[test]

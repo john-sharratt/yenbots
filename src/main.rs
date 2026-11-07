@@ -18,6 +18,7 @@ mod git;
 mod jobs;
 mod library;
 mod logs;
+mod notify;
 mod publish;
 mod reshape;
 mod serve;
@@ -46,6 +47,8 @@ use library::Library;
 use logs::browser::Repeats;
 use logs::layer::StoreLayer;
 use logs::Logs;
+use notify::push::{Https, Pusher};
+use notify::vapid::Vapid;
 use publish::Reloads;
 use store::Store;
 use version::{asks_for_build, BuildInfo};
@@ -90,6 +93,8 @@ async fn main() -> Result<()> {
     let bind = cfg.bind;
     let live_dir = cfg.live_dir.clone();
     let bus_url = cfg.bus.url.clone();
+    let vapid = Vapid::load_or_make(&store.conn(), accounts::now_ms())?;
+    let pusher = Pusher::start(store.clone(), vapid.clone(), Arc::new(Https::new()));
     let app = Arc::new(App {
         cfg,
         store,
@@ -99,6 +104,8 @@ async fn main() -> Result<()> {
         reloads: reloads.clone(),
         changes: Changes::new(),
         jobs: Jobs::new(),
+        vapid,
+        pusher,
         repeats: Repeats::new(),
         build: build.clone(),
         started_ms: accounts::now_ms(),

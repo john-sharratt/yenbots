@@ -15,8 +15,10 @@ use super::loader::Sources;
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
 use crate::apps::manifest::Manifest;
+use crate::config::Config;
 use crate::data::changes::Changes;
 use crate::jobs::follow::acting;
+use crate::notify::push::Pusher;
 use crate::store::Store;
 
 /// What every run reaches.
@@ -25,6 +27,9 @@ pub struct Env {
     pub store: Arc<Store>,
     pub changes: Changes,
     pub zone: TimeZone,
+    /// The site's config: who the admins are, for `ctx.notify`.
+    pub cfg: Config,
+    pub pusher: Pusher,
 }
 
 /// The job a run is of, as `ctx.job` shows it.
@@ -86,6 +91,8 @@ pub fn host_for(env: &Env, m: Arc<Manifest>, sources: Sources, caller: Caller) -
         caller,
         sources,
         zone: env.zone.clone(),
+        cfg: env.cfg.clone(),
+        pusher: env.pusher.clone(),
         log: Vec::new(),
         scheduled: false,
     }

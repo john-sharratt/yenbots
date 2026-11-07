@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, data, errors, events, jobs, library, me, openapi, reload};
+use super::{admin, data, errors, events, jobs, library, me, notify, openapi, reload};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -25,6 +25,7 @@ pub enum Ty {
     Int,
     Bool,
     List,
+    Object,
 }
 
 impl Ty {
@@ -34,6 +35,7 @@ impl Ty {
             Ty::Int => "integer",
             Ty::Bool => "boolean",
             Ty::List => "array",
+            Ty::Object => "object",
         }
     }
 }
@@ -249,6 +251,52 @@ pub const ROUTES: &[Route] = &[
         params: &[APP],
         body: &[needs("writes", Ty::List, "each `{op: create|update|delete, coll, id?, data?, version?}`")],
         handler: || post(data::batch),
+    },
+    // Notifications.
+    Route {
+        method: "GET", path: "/api/v1/push/key", page: "notify",
+        summary: "The site's push key: what a device subscribes with, as `applicationServerKey`.",
+        params: &[], body: &[], handler: || get(notify::key),
+    },
+    Route {
+        method: "POST", path: "/api/v1/push/subscribe", page: "notify",
+        summary: "This device, for the caller's notifications: a browser's `PushSubscription`.",
+        params: &[],
+        body: &[
+            needs("endpoint", Ty::Str, "the push service's address for this device"),
+            needs("keys", Ty::Object, "`{p256dh, auth}`, as the browser gives them"),
+        ],
+        handler: || post(notify::subscribe),
+    },
+    Route {
+        method: "DELETE", path: "/api/v1/push/subscribe", page: "notify",
+        summary: "Forget this device.",
+        params: &[], body: &[needs("endpoint", Ty::Str, "the device's push address")],
+        handler: || delete(notify::unsubscribe),
+    },
+    Route {
+        method: "GET", path: "/api/v1/inbox", page: "notify",
+        summary: "The caller's notifications, newest first, how many are unread, and the apps they muted.",
+        params: &[query("limit", Ty::Int, "how many, 1 to 100; 30 when absent")],
+        body: &[], handler: || get(notify::list),
+    },
+    Route {
+        method: "POST", path: "/api/v1/inbox/{id}/read", page: "notify",
+        summary: "Mark one notification read, or every one with `all`.",
+        params: &[path("id", "the notification's id, or `all`")],
+        body: &[], handler: || post(notify::read),
+    },
+    Route {
+        method: "PUT", path: "/api/v1/notify/{app}/mute", page: "notify",
+        summary: "Stop the app's pushes to the caller, or start them again; its inbox keeps every one.",
+        params: &[APP], body: &[needs("muted", Ty::Bool, "whether the app's pushes are stopped")],
+        handler: || put(notify::mute),
+    },
+    Route {
+        method: "POST", path: "/api/v1/feedback/{app}", page: "notify",
+        summary: "A note from the app's own menu, into the admins' inboxes.",
+        params: &[APP], body: &[needs("text", Ty::Str, "what the note says")],
+        handler: || post(notify::feedback),
     },
     // Jobs and workflows.
     Route {

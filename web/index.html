@@ -2,17 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Yen Bot</title>
   <link rel="stylesheet" href="/_/yen.css">
   <link rel="stylesheet" href="/_/site/landing.css">
+  <link rel="manifest" href="/_/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/_library/tiles/heart-coral-256.png">
+  <meta name="theme-color" content="#d4573d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <script type="module" src="/_/site/landing.js"></script>
 </head>
 <body>
+  <div class="bar" id="bar"></div>
   <main>
     <h1>Yen Bot</h1>
     <p>Made by Zen</p>
     <div class="card" id="who">…</div>
+    <div class="card" id="home-screen" hidden>
+      <strong>Put Yen Bot on your home screen</strong>
+      <p>It opens full-screen from there, and its notifications reach this phone.</p>
+      <ol>
+        <li>Tap the Share button at the bottom of Safari.</li>
+        <li>Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+        <li>Open Yen Bot from your home screen, and tap the bell to turn notifications on.</li>
+      </ol>
+      <button type="button" class="button">Got it</button>
+    </div>
   </main>
 </body>
 </html>

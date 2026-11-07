@@ -152,6 +152,9 @@ pub struct Manifest {
     pub guide: Option<u32>,
     #[serde(default)]
     pub collections: BTreeMap<String, Collection>,
+    /// Whether its workflows may send notifications (§11).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub notify: bool,
     /// Jobs (§9.2), each running a workflow the check holds to a file in
     /// `workflows/`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

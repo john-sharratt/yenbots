@@ -37,6 +37,7 @@ that never ends is stopped at the deadline and said so.
 | `account` | the account the run acts for, or `null` when it acts as the app |
 | `job` | the job being run, `{id, due_ms}`, or `null` for a run asked for at once |
 | `data.collection(name)` | one of the app's collections: `list({where, order, limit, after})`, `get(id)`, `create(fields)`, `update(id, fields, {version})`, `delete(id)`, `sum({where, group, of})`, `search(q, {limit})` |
+| `notify(to, {title, body, open})` | a notification to `to` — an account's id, `group:<name>`, or `admins` — written to each one's inbox and pushed to their devices; only those who may open the app are told; `open` is the page a tap opens (`/a/<app>/…`, the app's start when absent); answers `{accounts, devices}`; the app's `app.yaml` says `notify: true` |
 | `schedule(at, workflow, args)` | a job for later — `at` in milliseconds or a `Date` — acting for the same account; answers its id |
 | `run(workflow, args)` | another of the app's workflows, run in this run and awaited |
 | `once(key, fn)` | `fn` run once for `key`, whatever retries come; its answer is kept and given again |
@@ -58,8 +59,18 @@ keyed on the job and its time, so a run repeated after a crash does not send
 it twice:
 
 ```js
-await ctx.once(`${ctx.job.id}@${ctx.job.due_ms}`, async () => { /* send it */ });
+// apps/meals/workflows/plan-meals.js — `every: "weekly sun 19:00"`
+export default async function planMeals(ctx) {
+  await ctx.once(`${ctx.job.id}@${ctx.job.due_ms}`, () =>
+    ctx.notify("admins", { title: "Time to plan the meals", body: "What's for dinner this week?", open: "/a/meals/" }),
+  );
+}
 ```
+
+A notification is the inbox's first, then a push to each device the person
+turned notifications on for — unless they stopped the app's pushes from its
+bell. A message is a title (up to 120 characters), a body (up to 1,000) and
+the page it opens.
 
 ## Schedules
 

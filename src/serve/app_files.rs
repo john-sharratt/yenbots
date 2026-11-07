@@ -20,6 +20,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 
 use super::asset::respond;
+use super::install::HEAD;
 use super::reply::internal;
 use super::theme::href;
 use crate::app::App;
@@ -48,7 +49,8 @@ fn is_page(rel: &str) -> bool {
 
 /// `html` with the head every app page has as the first thing in its head:
 /// `<base href="/a/<id>/">` (unless it names a base already), the platform's
-/// stylesheet, and the app's theme at `theme`.
+/// stylesheet, the app's theme at `theme`, and the lines that make the site
+/// installable ([`HEAD`]).
 pub fn with_head(html: &str, id: &str, theme: &str) -> String {
     let lower = html.to_ascii_lowercase();
     let mut lines = Vec::new();
@@ -57,6 +59,7 @@ pub fn with_head(html: &str, id: &str, theme: &str) -> String {
     }
     lines.push("<link rel=\"stylesheet\" href=\"/_/yen.css\">".to_string());
     lines.push(format!("<link rel=\"stylesheet\" href=\"{theme}\">"));
+    lines.extend(HEAD.iter().map(|l| l.to_string()));
     let head = lower.match_indices("<head").map(|(at, _)| at).find(|&at| {
         matches!(
             lower.as_bytes().get(at + 5),
@@ -162,31 +165,38 @@ mod tests {
 
     #[test]
     fn the_base_and_the_look_are_the_first_things_in_the_head() {
+        // The install lines, indented in a head and not outside one.
+        let inside: String = HEAD.iter().map(|l| format!("\n  {l}")).collect();
+        let outside = HEAD.join("\n");
         let theme = "/_/theme/recipes.css?v=1";
         let html = "<!doctype html>\n<html>\n<HEAD lang=\"en\">\n  <title>R</title>\n</head>";
         assert_eq!(
             with_head(html, "recipes", theme),
             format!(
                 "<!doctype html>\n<html>\n<HEAD lang=\"en\">\n  <base href=\"/a/recipes/\">\n  {LOOK}\n  \
-                 <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\">\n  <title>R</title>\n</head>"
+                 <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\">{inside}\n  <title>R</title>\n</head>"
             )
         );
         assert_eq!(
             with_head("<head><base href=\"/x/\"></head>", "recipes", theme),
             format!(
-                "<head>\n  {LOOK}\n  <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\"><base \
+                "<head>\n  {LOOK}\n  <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\">{inside}<base \
                  href=\"/x/\"></head>"
             ),
             "a base of its own is kept"
         );
         assert_eq!(
             with_head("<yen-app></yen-app>", "r", "/t.css"),
-            format!("<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n<yen-app></yen-app>")
+            format!(
+                "<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n{outside}\n<yen-app></yen-app>"
+            )
         );
         // `<header>` is not the head.
         assert_eq!(
             with_head("<header></header>", "r", "/t.css"),
-            format!("<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n<header></header>")
+            format!(
+                "<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n{outside}\n<header></header>"
+            )
         );
     }
 

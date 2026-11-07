@@ -283,6 +283,16 @@ is "Due", `shopping-list` is "Shopping list".
 - **The art library**: `await app.library.find({kind, tag, colour})`
   answers its pictures, each with the address of every size
   (`library.md`).
+- **The bell and notifications**: every app's shell, and the landing page,
+  has a bell showing how many notifications are unread; pressed, it shows
+  the inbox, turns notifications on for this device, puts the site on the
+  home screen when the browser offers it, and stops this app's pushes
+  (the inbox keeps them). On an iPhone or iPad, notifications come only once
+  the site is on the home screen and opened from there: the bell, and the
+  landing page once, walk the person through it. From code:
+  `app.notify.state` (`install`, `unsupported`, `off`, `blocked`, `on`),
+  `await app.notify.enable()`, `app.inbox.unread`, `app.inbox.items`.
+  Notifications are sent by a workflow, `ctx.notify` (`workflows.md`).
 - **A workflow run now**: `await app.workflows.run(name, args)` runs one of
   the app's workflows as the account — a "send it now" button — and answers
   what it returned; a run that fails throws, `code` `workflow_failed`

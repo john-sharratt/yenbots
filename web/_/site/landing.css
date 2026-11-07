@@ -29,7 +29,34 @@ main > p {
   box-shadow: var(--yen-shadow-2);
 }
 
-a.button {
+.bar {
+  position: fixed;
+  top: max(var(--yen-space-2), env(safe-area-inset-top));
+  right: var(--yen-space-3);
+}
+
+.card + .card {
+  margin-top: var(--yen-space-4);
+}
+
+#home-screen {
+  text-align: left;
+}
+
+#home-screen[hidden] {
+  display: none;
+}
+
+#home-screen ol {
+  margin: var(--yen-space-3) 0;
+  padding-left: var(--yen-space-5);
+}
+
+a.button,
+button.button {
+  border: none;
+  font: inherit;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   min-height: var(--yen-control-height);
@@ -43,6 +70,7 @@ a.button {
   transition: transform var(--yen-duration-1) var(--yen-ease-out);
 }
 
-a.button:active {
+a.button:active,
+button.button:active {
   transform: scale(0.97);
 }

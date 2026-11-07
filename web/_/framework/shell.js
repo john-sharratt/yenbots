@@ -1,5 +1,5 @@
 // `<yen-app>` (§8.6): what every app is shown inside — its title, the way
-// back to the landing page and the account's picture; sign-in, waiting for
+// back to the landing page, the bell and the account's picture; sign-in, waiting for
 // approval and an app not yours, handled; the page the address names;
 // writes waiting for the connection and those the site refused, to keep or
 // drop; and a "something went wrong" panel that says what and offers a
@@ -195,6 +195,7 @@ export function defineShell(sdk, { base, fault, report, restart }) {
       return html`<header>
           <yen-icon-button icon="home" label="All the apps" href="/"></yen-icon-button>
           <h1>${sdk.title.value}</h1>
+          ${account?.status === "active" ? html`<yen-bell></yen-bell>` : nothing}
           ${account ? html`<yen-avatar size="small" name=${account.name} src=${account.picture ?? nothing}></yen-avatar>` : nothing}
         </header>
         ${this.strip()}

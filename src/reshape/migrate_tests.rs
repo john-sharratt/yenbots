@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use jiff::tz::TimeZone;
 use serde_json::json;
 
 use super::*;
+use crate::config::Config;
 use crate::data::changes::Changes;
+use crate::notify::push::Pusher;
 use crate::store::Store;
 
 /// Recipes at shape 3: `title` and `serves`, where shape 1 had `name` and
@@ -17,6 +20,12 @@ fn env() -> Env {
         store: Arc::new(Store::in_memory().unwrap()),
         changes: Changes::new(),
         zone: TimeZone::UTC,
+        cfg: Config::from_yaml(
+            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
+            Path::new("."),
+        )
+        .unwrap(),
+        pusher: Pusher::channel().0,
     }
 }
 

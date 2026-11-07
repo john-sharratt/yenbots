@@ -30,7 +30,7 @@ use crate::apps::theme::colour::Colour;
 use catalogue::Entry;
 use dominant::{dominant, field, nearest, EDITION};
 use kind::Kind;
-use sizing::{decode, sized, webp, QUALITY};
+use sizing::{decode, png as to_png, sized, webp, QUALITY};
 
 /// One picture as it is served.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,6 +130,18 @@ fn size_file(dir: &Path, w: u32, h: u32) -> PathBuf {
     dir.join(format!("{w}x{h}.webp"))
 }
 
+/// The cached PNG of a tile at size `w`×`h`: the home screen's icon.
+fn png_file(dir: &Path, w: u32, h: u32) -> PathBuf {
+    dir.join(format!("{w}x{h}.png"))
+}
+
+/// Whether every file `kind`'s pictures are cached as is in `dir`.
+fn all_cached(dir: &Path, kind: Kind) -> bool {
+    kind.sizes().iter().all(|&(w, h)| {
+        size_file(dir, w, h).is_file() && (kind != Kind::Tiles || png_file(dir, w, h).is_file())
+    })
+}
+
 /// Write `bytes` to `path` whole or not at all: to a file beside it, then
 /// renamed over it.
 fn write_whole(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -206,14 +218,18 @@ impl Library {
         let cached = std::fs::read_to_string(&colour_file)
             .ok()
             .and_then(|c| Colour::parse(&c))
-            .filter(|_| sizes.iter().all(|&(w, h)| size_file(&dir, w, h).is_file()));
+            .filter(|_| all_cached(&dir, entry.kind));
         let colour = match cached {
             Some(c) => c,
             None => {
                 let img = decode(&png).with_context(|| entry.path())?;
                 std::fs::create_dir_all(&dir)?;
                 for &(w, h) in sizes {
-                    write_whole(&size_file(&dir, w, h), &webp(&sized(&img, w, h))?)?;
+                    let at = sized(&img, w, h);
+                    write_whole(&size_file(&dir, w, h), &webp(&at)?)?;
+                    if entry.kind == Kind::Tiles {
+                        write_whole(&png_file(&dir, w, h), &to_png(&at)?)?;
+                    }
                 }
                 let read = if entry.kind == Kind::Tiles {
                     field(&img)
@@ -275,14 +291,26 @@ impl Library {
             .collect()
     }
 
-    /// The sized file a request names — `<kind>/<id>-<width>.webp` — when
-    /// the picture and the size are there.
+    /// The sized file a request names — `<kind>/<id>-<width>.webp`, or a
+    /// tile's `.png` — when the picture and the size are there.
     pub fn file(&self, kind: &str, file: &str) -> Option<PathBuf> {
-        let (id, width) = file.strip_suffix(".webp")?.rsplit_once('-')?;
+        let (stem, as_png) = match file.strip_suffix(".webp") {
+            Some(stem) => (stem, false),
+            None => (file.strip_suffix(".png")?, true),
+        };
+        let (id, width) = stem.rsplit_once('-')?;
         let width: u32 = width.parse().ok()?;
         let p = self.get(&format!("{kind}/{id}"))?;
+        if as_png && p.entry.kind != Kind::Tiles {
+            return None;
+        }
         let &(w, h) = p.entry.kind.sizes().iter().find(|s| s.0 == width)?;
-        Some(size_file(&self.cache.join(cache_name(&p.digest)), w, h))
+        let dir = self.cache.join(cache_name(&p.digest));
+        Some(if as_png {
+            png_file(&dir, w, h)
+        } else {
+            size_file(&dir, w, h)
+        })
     }
 }
 

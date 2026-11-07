@@ -1,12 +1,15 @@
 // The page's one app, made from the browser: the app its address names,
 // its errors reported (§18.1), its writes kept in IndexedDB, its
-// collections kept current by the change feed, `<yen-app>` defined, and the
-// page reloaded when the site serves a new commit (§5.3).
+// collections kept current by the change feed, `<yen-app>` and `<yen-bell>`
+// defined, the service worker registered (§11.1), and the page reloaded when
+// the site serves a new commit (§5.3).
 
 import { signal } from "../vendor/signals-core.mjs";
 import { Api } from "./api.js";
+import { defineBell } from "./bell.js";
 import { listenForChanges, listenForReload } from "./feed.js";
 import { keyOf, openKeep } from "./idb.js";
+import { browserDevice } from "./notify.js";
 import { describe, Reporter } from "./report.js";
 import { appIdOf } from "./router.js";
 import { Sdk } from "./sdk.js";
@@ -58,7 +61,19 @@ export function boot() {
     storage: keyOf(keep, "queue"),
     cache: keep,
     compare: new Intl.Collator("en-AU").compare,
+    device: browserDevice(),
   });
+
+  // The service worker shows the site's pushes (§11.1); a browser that
+  // offers to put the site on the home screen has its offer kept for the
+  // bell.
+  navigator.serviceWorker?.register("/sw.js").catch((e) => report(`the service worker did not start: ${describe(e).message}`, { page: location.href }));
+  const installable = signal(null);
+  addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installable.value = e;
+  });
+  defineBell(sdk, { app: id, installable });
 
   // Once the app is open: its feed, and its waiting writes tried again.
   let listening = false;
@@ -86,7 +101,8 @@ export function boot() {
 
   const shell = id === "_site" ? null : defineShell(sdk, { base, fault, report, restart: open });
   listenForReload(EventSource, document, () => location.reload());
-  open();
+  // The site's own pages are no app: they use the bell, not a collection.
+  if (id !== "_site") open();
 
   return { sdk, go: shell ? shell.go : (to) => location.assign(to) };
 }

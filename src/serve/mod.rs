@@ -5,6 +5,7 @@
 //! | `GET /` | the landing page (`web/index.html`) |
 //! | `GET /_/…` | the platform's web files, the framework and the design system, embedded ([`web`]) |
 //! | `GET /_/theme/{id}.css` | an app's theme, from its manifest ([`theme`]) |
+//! | `GET /_/manifest.webmanifest`, `GET /sw.js` | the installable site: its manifest and service worker ([`install`]) |
 //! | `GET /_design` | the design system's catalogue |
 //! | `GET /_library` | the art library's page |
 //! | `GET /_library/{kind}/{id}-{width}.webp` | a library picture at one of its sizes ([`library`]) |
@@ -24,9 +25,11 @@ pub mod asset;
 pub mod data;
 pub mod errors;
 pub mod events;
+pub mod install;
 pub mod jobs;
 pub mod library;
 pub mod me;
+pub mod notify;
 pub mod openapi;
 pub mod reload;
 pub mod reply;
@@ -50,6 +53,7 @@ use routes::ROUTES;
 pub fn router(app: Arc<App>) -> Router {
     let mut r = Router::new()
         .route("/", get(web::landing))
+        .route("/sw.js", get(install::service_worker))
         .route("/_/*path", get(web::platform_file))
         .route("/_design", get(web::design))
         .route("/_design/*path", get(web::design_file))
@@ -92,9 +96,12 @@ mod tests {
     use crate::library::Library;
     use crate::logs::browser::Repeats;
     use crate::logs::{Level, Line, Logs};
+    use crate::notify::push::Pusher;
+    use crate::notify::vapid::Vapid;
     use crate::publish::Reloads;
     use crate::store::Store;
     use crate::version::BuildInfo;
+    use p256::SecretKey;
 
     const HOME: &str =
         "id: home\nname: Home\nstatus: live\ncollections:\n  notes:\n    scope: private\n    \
@@ -119,6 +126,8 @@ mod tests {
             reloads: Reloads::new(),
             changes: Changes::new(),
             jobs: Jobs::new(),
+            vapid: Vapid::from_key(SecretKey::from_slice(&[7u8; 32]).unwrap()),
+            pusher: Pusher::channel().0,
             repeats: Repeats::new(),
             store,
             build: BuildInfo::this(),
@@ -204,7 +213,7 @@ mod tests {
         let (status, body) = get_as(&app(), "/v1/status", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
-        assert_eq!(body["store"]["schema"], 3);
+        assert_eq!(body["store"]["schema"], 4);
     }
 
     async fn call(
@@ -505,9 +514,10 @@ mod tests {
             Arc::new(Store::in_memory().unwrap()),
         ));
         let theme = theme::href("home", &Theme::default()).unwrap();
+        let installable: String = install::HEAD.iter().map(|l| format!("\n  {l}")).collect();
         let page = format!(
             "<head>\n  <base href=\"/a/home/\">\n  <link rel=\"stylesheet\" href=\"/_/yen.css\">\n  <link \
-             rel=\"stylesheet\" href=\"{theme}\"></head><yen-app></yen-app>"
+             rel=\"stylesheet\" href=\"{theme}\">{installable}</head><yen-app></yen-app>"
         );
         assert_eq!(
             fetch(&app, "/a/home").await,

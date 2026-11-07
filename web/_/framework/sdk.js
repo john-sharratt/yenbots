@@ -6,6 +6,8 @@
 import { signal } from "../vendor/signals-core.mjs";
 import { ApiError, Offline } from "./api.js";
 import { Collection } from "./collection.js";
+import { Inbox } from "./inbox.js";
+import { Notify } from "./notify.js";
 import { Queue } from "./queue.js";
 import { routesOf } from "./router.js";
 
@@ -16,12 +18,17 @@ export class Sdk {
    * @param storage where the queue keeps its writes
    * @param cache `{load, save}` by key, where collections keep what they last loaded
    * @param compare how text sorts (`Intl.Collator`'s `compare`)
+   * @param device what the browser gives for notifications (`browserDevice()`)
    */
-  constructor(id, { api, storage, cache, compare, now }) {
+  constructor(id, { api, storage, cache, compare, now, device }) {
     this.id = id;
     this.api = api;
     this.cache = cache;
     this.compare = compare;
+    /** Notifications on this device (§11.1): `state`, `enable()`, `disable()`, `mute(app, muted)`. */
+    this.notify = new Notify(api, device);
+    /** The account's notifications (§11.2): `items`, `unread`, `muted`, `read(id)`, `readAll()`. */
+    this.inbox = new Inbox(api);
     /** `GET /me`: who is signed in, and whether approved. */
     this.me = signal(null);
     /** `GET /apps/{id}`: the app's collections and their fields. */

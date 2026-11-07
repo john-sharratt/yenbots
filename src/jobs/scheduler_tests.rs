@@ -10,9 +10,12 @@ use crate::jobs::table::{get, insert, list, runs, NewJob};
 use crate::library::Library;
 use crate::logs::browser::Repeats;
 use crate::logs::{Logs, Search};
+use crate::notify::push::Pusher;
+use crate::notify::vapid::Vapid;
 use crate::publish::Reloads;
 use crate::store::Store;
 use crate::version::BuildInfo;
+use p256::SecretKey;
 
 const MANIFEST: &str =
     "id: home\nname: Home\ncollections:\n  reminders:\n    scope: private\n    fields:\n      \
@@ -52,6 +55,8 @@ fn site(dir: &Path) -> Arc<App> {
         reloads: Reloads::new(),
         changes: Changes::new(),
         jobs: Jobs::new(),
+        vapid: Vapid::from_key(SecretKey::from_slice(&[7u8; 32]).unwrap()),
+        pusher: Pusher::channel().0,
         repeats: Repeats::new(),
         store,
         build: BuildInfo::this(),

@@ -31,6 +31,8 @@ pub fn env_of(app: &App) -> Env {
         store: app.store.clone(),
         changes: app.changes.clone(),
         zone: app.cfg.zone(),
+        cfg: app.cfg.clone(),
+        pusher: app.pusher.clone(),
     }
 }
 

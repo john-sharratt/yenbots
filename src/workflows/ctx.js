@@ -73,6 +73,15 @@ export const ctx = Object.freeze({
   /** The account the run acts for, or null when it acts as the app. */
   account: run.account,
   data: Object.freeze({ collection: (name) => new Collection(name) }),
+  /**
+   * A notification (§11) to `to` — an account's id, `group:<name>`, or
+   * `admins` — `{title, body, open}`: written to each one's inbox and pushed
+   * to their devices. Answers `{accounts, devices}`. The app's `app.yaml`
+   * says `notify: true`.
+   */
+  async notify(to, message) {
+    return call("notify", to, message);
+  },
   /** A job for later: `workflow` run with `args` at `at` (milliseconds, or a Date). */
   async schedule(at, workflow, args = {}) {
     const when = at instanceof Date ? at.getTime() : at;

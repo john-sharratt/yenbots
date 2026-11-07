@@ -162,6 +162,44 @@ pub const STEPS: &[&str] = &[
       PRIMARY KEY (app, coll)
     );
     "#,
+    // 4 — notifications: the site's push key, each device's subscription,
+    // the inbox, and the apps an account has muted.
+    r#"
+    CREATE TABLE push_keys (
+      id          INTEGER PRIMARY KEY CHECK (id = 1),
+      private     TEXT NOT NULL,      -- base64url
+      public      TEXT NOT NULL,      -- base64url, uncompressed
+      created_ms  INTEGER NOT NULL
+    );
+
+    CREATE TABLE push_subscriptions (
+      endpoint    TEXT PRIMARY KEY,
+      account     TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      p256dh      TEXT NOT NULL,      -- the device's key, base64url
+      auth        TEXT NOT NULL,      -- its auth secret, base64url
+      created_ms  INTEGER NOT NULL,
+      sent_ms     INTEGER             -- the last push the service took
+    );
+    CREATE INDEX push_subscriptions_account ON push_subscriptions (account);
+
+    CREATE TABLE inbox (
+      id          TEXT PRIMARY KEY,
+      account     TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      app         TEXT NOT NULL,
+      title       TEXT NOT NULL,
+      body        TEXT NOT NULL,
+      open        TEXT,               -- the address a tap opens
+      created_ms  INTEGER NOT NULL,
+      read_ms     INTEGER
+    );
+    CREATE INDEX inbox_by_account ON inbox (account, created_ms);
+
+    CREATE TABLE mutes (
+      account  TEXT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+      app      TEXT NOT NULL,
+      PRIMARY KEY (account, app)
+    );
+    "#,
 ];
 
 /// The schema this build makes.

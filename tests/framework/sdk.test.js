@@ -29,6 +29,7 @@ function sdk(answers, cache = memoryCache()) {
     cache,
     compare: (a, b) => (a < b ? -1 : a > b ? 1 : 0),
     now: () => 50,
+    device: { apple: false, standalone: false, push: false, permission: () => "default" },
   });
   return { s, calls: f.calls, cache };
 }

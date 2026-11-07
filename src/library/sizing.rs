@@ -5,6 +5,8 @@
 //! makes a 512 tile a fraction of that with no visible change. WebP keeps a
 //! sticker's transparency, so one format serves every kind.
 
+use std::io::Cursor;
+
 use anyhow::{anyhow, Context, Result};
 use image::imageops::{self, FilterType};
 use image::{ImageFormat, RgbaImage};
@@ -48,6 +50,15 @@ pub fn webp(img: &RgbaImage) -> Result<Vec<u8>> {
         .encode_simple(false, QUALITY)
         .map_err(|e| anyhow!("encoding WebP: {e:?}"))?;
     Ok(encoded.to_vec())
+}
+
+/// `img` as a PNG: a tile, for the home screen's icon, which iPhones take
+/// in no other format (§11.1).
+pub fn png(img: &RgbaImage) -> Result<Vec<u8>> {
+    let mut out = Cursor::new(Vec::new());
+    img.write_to(&mut out, ImageFormat::Png)
+        .map_err(|e| anyhow!("encoding PNG: {e}"))?;
+    Ok(out.into_inner())
 }
 
 #[cfg(test)]

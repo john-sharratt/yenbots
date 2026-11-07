@@ -15,11 +15,15 @@ use super::loader::Sources;
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
 use crate::apps::manifest::{is_name, Manifest};
+use crate::config::Config;
 use crate::data::changes::{change_of, Changes, Feed, Op};
 use crate::data::docs::{self, Change, Denied, Doc, Query, Sum};
 use crate::jobs::clock::spoken;
 use crate::jobs::follow::acting;
 use crate::jobs::table::{insert, NewJob};
+use crate::notify::deliver::{deliver, Origin};
+use crate::notify::inbox::Message;
+use crate::notify::push::Pusher;
 use crate::store::Store;
 
 /// The most lines a run's log keeps, and the longest each may be.
@@ -34,6 +38,8 @@ pub struct Host {
     pub caller: Caller,
     pub sources: Sources,
     pub zone: TimeZone,
+    pub cfg: Config,
+    pub pusher: Pusher,
     /// The run's log, as `ctx.log` wrote it.
     pub log: Vec<String>,
     /// Whether it made a job, so the scheduler looks again.
@@ -141,6 +147,7 @@ impl Host {
                 Err(d) => denied(d),
             },
             "schedule" => self.schedule(args)?,
+            "notify" => self.notify(args)?,
             "has" => ok(json!(str_arg(args, 0).is_some_and(|n| self.sources.has(n)))),
             "once_get" => {
                 let key = str_arg(args, 0).unwrap_or_default();
@@ -231,6 +238,39 @@ impl Host {
         tx.commit()?;
         self.changes.send(Feed::Changed(told));
         Ok(Ok(done))
+    }
+
+    /// `ctx.notify(to, {title, body, open})`: to an account's id,
+    /// `group:<name>` or `admins` — written to each inbox, pushed to each
+    /// device (§11).
+    fn notify(&mut self, args: &[Value]) -> Result<Value> {
+        if !self.manifest.notify {
+            return Ok(refused(
+                "forbidden",
+                "this app does not send notifications: add `notify: true` to its app.yaml",
+            ));
+        }
+        let to = str_arg(args, 0).unwrap_or_default();
+        let message: Message =
+            match serde_json::from_value(args.get(1).cloned().unwrap_or(Value::Null)) {
+                Ok(m) => m,
+                Err(e) => {
+                    return Ok(refused(
+                        "bad_request",
+                        format!("a notification is `{{title, body, open}}`: {e}"),
+                    ))
+                }
+            };
+        let origin = Origin {
+            store: &self.store,
+            cfg: &self.cfg,
+            pusher: &self.pusher,
+            app: &self.manifest,
+        };
+        Ok(match deliver(&origin, to, &message, now_ms())? {
+            Ok(done) => json!({ "ok": done }),
+            Err(why) => refused("no_one", why),
+        })
     }
 
     /// `ctx.schedule(at, workflow, args)`: a job for later, acting for the
