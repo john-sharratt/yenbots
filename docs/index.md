@@ -27,4 +27,3 @@ One line per doc: when to read it. Read only what the task needs.
 | `lifecycle.md` | exporting, importing, deleting, renaming an app, storage, backups and restoring |
 | `journal.md` | before changing an app, and each time something is decided |
 | `running.md` | releasing the binary, restarting it, or finding where it keeps its files |
-| `claude-ai-project.md` | the instructions of Yen's claude.ai Project |
