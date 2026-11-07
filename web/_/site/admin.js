@@ -46,6 +46,21 @@ async function call(method, path, body) {
   return answer;
 }
 
+/** A file's text sent as an import's body (`POST /import/<app>`, §20.1). */
+async function imported(app, file, coll) {
+  const csv = file.name.toLowerCase().endsWith(".csv");
+  const q = csv ? `?format=csv&coll=${encodeURIComponent(coll)}` : "";
+  const res = await fetch(`/api/v1/import/${app}${q}`, {
+    method: "POST",
+    headers: { "X-Yen-App": "_site", "Content-Type": csv ? "text/csv" : "application/json" },
+    body: await file.text(),
+  });
+  const answer = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Refused(answer.detail ?? `the import answered ${res.status}`);
+  const made = Object.entries(answer.created ?? {}).map(([c, n]) => `${n} into ${c}`);
+  return made.length ? `Imported ${made.join(", ")}.` : "The file held no records.";
+}
+
 /** Run `work`, then draw the page again; say what went wrong, if anything. */
 async function act(work, done) {
   try {
@@ -160,6 +175,21 @@ function drawGroups() {
 
 let apps = [];
 
+/**
+ * Import into app `a`: an export's JSON, or a spreadsheet's CSV into the
+ * collection chosen — validated like any write, all or nothing.
+ */
+function importer(a) {
+  const coll = h("select", { "aria-label": `The collection a CSV goes into, in ${a.name}` }, a.collections.map((c) => h("option", { value: c }, c)));
+  const file = h("input", { type: "file", accept: ".csv,.json", "aria-label": `A file to import into ${a.name}` });
+  file.addEventListener("change", () => {
+    const chosen = file.files[0];
+    if (chosen) act(async () => say(await imported(a.id, chosen, coll.value)));
+    file.value = "";
+  });
+  return h("span", { class: "row" }, h("span", {}, "Import"), coll, file);
+}
+
 async function drawApps() {
   const order = apps.map((a) => a.id);
   const cards = await Promise.all(
@@ -200,6 +230,7 @@ async function drawApps() {
             button("Up", () => act(() => call("PUT", "/admin/apps/order", { order: moved(order, a.id, -1) }))),
             button("Down", () => act(() => call("PUT", "/admin/apps/order", { order: moved(order, a.id, 1) }))),
             h("a", { href: `/api/v1/export/${a.id}`, download: `${a.id}.json` }, "Export"),
+            importer(a),
             h("a", { href: `/a/${a.id}/` }, "Open"),
             button("Archive", () => {
               if (confirm(`Archive ${a.name}? It is hidden from everyone and its jobs held, until it is restored.`)) {
