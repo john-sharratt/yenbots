@@ -151,7 +151,7 @@ mod tests {
         let app = app();
         let (_, anon) = get_as(&app, "/api/v1/me", None).await;
         assert_eq!(anon["signed_in"], false);
-        assert_eq!(anon["site"], "Yen Bots");
+        assert_eq!(anon["site"], "Yen Bot");
         let (_, cousin) = get_as(&app, "/api/v1/me", Some(("2", "c@example.com"))).await;
         assert_eq!(cousin["account"]["status"], "pending");
         let (_, yen) = get_as(&app, "/api/v1/me", Some(("1", "yen@example.com"))).await;

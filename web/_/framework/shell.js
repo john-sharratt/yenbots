@@ -186,7 +186,7 @@ export function defineShell(sdk, { base, fault, report, restart }) {
     }
 
     updated() {
-      document.title = sdk.title.value || "Yen Bots";
+      document.title = sdk.title.value || "Yen Bot";
     }
 
     render() {
@@ -250,12 +250,12 @@ export function defineShell(sdk, { base, fault, report, restart }) {
       if (!me.signed_in) {
         const next = encodeURIComponent(location.href);
         return html`<yen-empty icon="lock" heading=${`Sign in to use ${sdk.title.value || "this app"}`}>
-          Yen Bots keeps the family's apps for the family.
+          Yen Bot's apps open once you've signed in.
           <yen-button slot="action" href=${`/auth/login?next=${next}`}>Sign in with Google</yen-button>
         </yen-empty>`;
       }
       if (me.account.status === "blocked") {
-        return html`<yen-empty icon="lock" heading="This account can't use Yen Bots"></yen-empty>`;
+        return html`<yen-empty icon="lock" heading="This account can't use Yen Bot"></yen-empty>`;
       }
       if (me.account.status !== "active") {
         return html`<yen-empty icon="clock" heading="Nearly there">Yen has been told you're here, and will let you in soon.</yen-empty>`;

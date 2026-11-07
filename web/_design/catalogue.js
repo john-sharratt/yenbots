@@ -137,7 +137,7 @@ class YenCatalogue extends YenElement {
     return html`<div class="bar">
         <h1>
           The design system
-          <small>${this.themed ? html`In the theme of <strong>${this.themed}</strong>` : "Yen Bots' own look"}</small>
+          <small>${this.themed ? html`In the theme of <strong>${this.themed}</strong>` : "Yen Bot's own look"}</small>
         </h1>
         ${this.choice("Light or dark", this.scheme, [["both", "Both"], ["light", "Light"], ["dark", "Dark"]], (v) => (this.scheme = v))}
         ${this.choice("Width", this.width, [["phone", "Phone"], ["desktop", "Desktop"]], (v) => (this.width = v))}

@@ -84,7 +84,7 @@ pub fn describe(routes: &[Route], version: &str) -> Value {
     json!({
         "openapi": "3.1.0",
         "info": {
-            "title": "Yen Bots",
+            "title": "Yen Bot",
             "version": version,
             "description": "Every route acts as the account the request carries: a signed-in \
                             browser's, or an API token's (`Authorization: Bearer …`). A browser \

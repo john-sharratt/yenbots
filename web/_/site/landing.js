@@ -17,7 +17,7 @@ if (!me.signed_in) {
 } else if (me.account.status === "pending") {
   who.textContent = `Hi ${me.account.name} — Yen has been told you're here, and will let you in soon.`;
 } else if (me.account.status === "blocked") {
-  who.textContent = "This account can't use Yen Bots.";
+  who.textContent = "This account can't use Yen Bot.";
 } else {
   who.textContent = `Welcome, ${me.account.name}. Apps arrive here soon.`;
 }

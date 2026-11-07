@@ -1,5 +1,5 @@
-# Yen Bots' service config, as it runs on BlackWorld (docs/running.md).
-site_name: Yen Bots
+# Yen Bot's service config, as it runs on BlackWorld (docs/running.md).
+site_name: Yen Bot
 bind: "127.0.0.1:8096"
 data_dir: "D:/yenbot/data"
 live_dir: "D:/yenbot/live"

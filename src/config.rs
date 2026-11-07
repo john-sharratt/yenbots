@@ -54,7 +54,7 @@ pub struct Bus {
 }
 
 fn d_site_name() -> String {
-    "Yen Bots".into()
+    "Yen Bot".into()
 }
 
 fn d_bind() -> SocketAddr {
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn a_config_resolves_its_directories_and_defaults() {
         let c = Config::from_yaml(OK, Path::new("/srv/yenbot")).unwrap();
-        assert_eq!(c.site_name, "Yen Bots");
+        assert_eq!(c.site_name, "Yen Bot");
         assert_eq!(c.bind, "127.0.0.1:8096".parse().unwrap());
         assert_eq!(c.data_dir, Path::new("/srv/yenbot").join("data"));
         assert_eq!(
