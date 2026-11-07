@@ -29,7 +29,7 @@ what it shows.
 | `library/` | the art library: pictures and `catalogue.yaml` | a Zen task: a picture and its line, together (`docs/library.md`) |
 | `templates/` | starting points for a new app | an edit |
 | `docs/` | the manual | an edit |
-| `yenbot.yaml` | the service's config: admins, registration, paths | an edit, then a restart |
+| `yenbot.yaml` | the service's config: admins, registration, Yen's time zone, paths | an edit, then a restart |
 
 ## The order of work
 
@@ -60,7 +60,8 @@ what it shows.
 ## Seeing what happened
 
 `log_list`, `log_read` and `log_grep` on the connector: the platform is source `yenbot`,
-each app `yenbot/<app>`. Everything the site stores is its API, called from a Zen task
+each app `yenbot/<app>` — a workflow's every run is a line there, target `workflow`, with
+what it logged. Everything the site stores is its API, called from a Zen task
 with the HTTP tools and an API token (`docs/api/admin-tokens.md`); every route is in
 `docs/api/`. Look before guessing.
 

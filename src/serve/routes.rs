@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, data, errors, events, library, me, openapi, reload};
+use super::{admin, data, errors, events, jobs, library, me, openapi, reload};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -249,6 +249,39 @@ pub const ROUTES: &[Route] = &[
         params: &[APP],
         body: &[needs("writes", Ty::List, "each `{op: create|update|delete, coll, id?, data?, version?}`")],
         handler: || post(data::batch),
+    },
+    // Jobs and workflows.
+    Route {
+        method: "GET", path: "/api/v1/jobs/{app}", page: "jobs",
+        summary: "The app's jobs acting for the caller or as the app: when each runs next, and its last runs.",
+        params: &[APP], body: &[], handler: || get(jobs::of_app),
+    },
+    Route {
+        method: "POST", path: "/api/v1/workflows/{app}/{name}", page: "jobs",
+        summary: "Run a workflow now, as the caller; the body is its arguments. Answers its value and log.",
+        params: &[APP, path("name", "the workflow, a file in the app's `workflows/`")],
+        body: &[], handler: || post(jobs::run),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/jobs", page: "admin-jobs",
+        summary: "Every job, soonest first, with its arguments and last runs.",
+        params: &[
+            query("app", Ty::Str, "only this app's; `_platform` for the platform's own"),
+            query("state", Ty::Str, "only those `waiting`, `running`, `held`, `done` or `failed`"),
+        ],
+        body: &[], handler: || get(jobs::list),
+    },
+    Route {
+        method: "POST", path: "/api/v1/admin/jobs/{id}/{action}", page: "admin-jobs",
+        summary: "Run a job now, hold it, or release it.",
+        params: &[path("id", "the job's id"), path("action", "`run`, `hold` or `release`")],
+        body: &[], handler: || post(jobs::act),
+    },
+    Route {
+        method: "POST", path: "/api/v1/admin/workflows/{app}/{name}", page: "admin-jobs",
+        summary: "Run a workflow now, as the app; the body is its arguments. Answers its value and log.",
+        params: &[APP, path("name", "the workflow, a file in the app's `workflows/`")],
+        body: &[], handler: || post(jobs::run_as_app),
     },
     // Accounts and groups.
     Route {

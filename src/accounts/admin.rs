@@ -210,7 +210,7 @@ mod tests {
 
     fn cfg() -> Config {
         Config::from_yaml(
-            "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nbus: {url: u, key_file: k}\n",
+            "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
             Path::new("."),
         )
         .unwrap()

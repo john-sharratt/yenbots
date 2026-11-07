@@ -30,13 +30,16 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unicode-normalization = "0.1"
 # The platform's and the apps' files, gzipped for a browser that takes it.
 flate2 = "1"
-# The embedded JavaScript engine: the check compiles every workflow in it
-# (src/check/rules/workflows.rs), and the framework's tests run in it.
+# The embedded JavaScript engine: workflows run in it (src/workflows/), the
+# check compiles every workflow in it, and the framework's tests run in it.
 rquickjs = { version = "0.14.0", features = ["loader"] }
 # The art library's pictures, read as PNG, sized, and encoded as lossy WebP
 # by libwebp on load (src/library/sizing.rs).
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 webp = { version = "0.3", default-features = false }
+# Yen's time zone, for the jobs' repeat rules (src/jobs/rule.rs): the time
+# zone database is compiled in, so every machine reads a rule the same way.
+jiff = { version = "0.2.28", features = ["tzdb-bundle-always"] }
 
 [build-dependencies]
 sha2 = "0.10.9"

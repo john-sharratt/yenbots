@@ -15,12 +15,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use rquickjs::loader::{ImportAttributes, Loader, Resolver};
-use rquickjs::module::Declared;
-use rquickjs::{CatchResultExt, CaughtError, Context, Ctx, Error, Module, Runtime, Value};
+use rquickjs::{CatchResultExt, CaughtError, Context, Module, Runtime, Value};
 
 use crate::check::files::Files;
 use crate::check::Refusal;
+use crate::workflows::loader::{self, Sources};
 
 use super::app_dir;
 
@@ -32,95 +31,19 @@ const MEMORY: usize = 32 << 20;
 /// How many of the engine's interrupt checks a top level may run through.
 const BUDGET: u32 = 2_000;
 
-/// An app's workflow files, which are all a workflow may import.
-#[derive(Clone)]
-struct Workflows {
-    dir: String,
-    files: Arc<BTreeMap<String, String>>,
-}
-
-/// `base`'s folder joined to `name`, with `.` and `..` resolved.
-fn join(base: &str, name: &str) -> String {
-    let mut parts: Vec<&str> = base.split('/').collect();
-    parts.pop();
-    for seg in name.split('/') {
-        match seg {
-            "." | "" => {}
-            ".." => {
-                parts.pop();
-            }
-            s => parts.push(s),
-        }
-    }
-    parts.join("/")
-}
-
-impl Resolver for Workflows {
-    fn resolve<'js>(
-        &mut self,
-        _ctx: &Ctx<'js>,
-        base: &str,
-        name: &str,
-        _attributes: Option<ImportAttributes<'js>>,
-    ) -> rquickjs::Result<String> {
-        let path = join(base, name);
-        if (name.starts_with("./") || name.starts_with("../"))
-            && path.starts_with(&self.dir)
-            && self.files.contains_key(&path)
-        {
-            Ok(path)
-        } else {
-            Err(Error::new_resolving_message(
-                base,
-                name,
-                "a workflow imports only the app's other workflow files",
-            ))
-        }
-    }
-}
-
-impl Loader for Workflows {
-    fn load<'js>(
-        &mut self,
-        ctx: &Ctx<'js>,
-        name: &str,
-        _attributes: Option<ImportAttributes<'js>>,
-    ) -> rquickjs::Result<Module<'js, Declared>> {
-        let source = self.files.get(name).cloned().unwrap_or_default();
-        Module::declare(ctx.clone(), name, source)
-    }
-}
-
-/// The line a QuickJS error's stack names in `path`.
-fn line_in(stack: &str, path: &str) -> Option<usize> {
-    let at = stack.find(&format!("{path}:"))? + path.len() + 1;
-    let digits: String = stack[at..]
-        .chars()
-        .take_while(char::is_ascii_digit)
-        .collect();
-    digits.parse().ok()
-}
-
 /// What went wrong, and where, as the engine tells it.
 fn said(caught: CaughtError, path: &str) -> (Option<usize>, String) {
-    match caught {
-        // The engine stops a run past its budget with an `InternalError`
-        // whose whole message is this.
-        CaughtError::Exception(e) if e.message().as_deref() == Some("interrupted") => (
+    match loader::said(caught, path) {
+        (_, None) => (
             None,
             "runs too long as it loads: a workflow's top level defines its function and does no work".to_string(),
         ),
-        CaughtError::Exception(e) => {
-            let line = e.stack().and_then(|s| line_in(&s, path));
-            (line, e.message().unwrap_or_else(|| "an error".to_string()))
-        }
-        CaughtError::Value(v) => (None, format!("threw {v:?}")),
-        CaughtError::Error(e) => (None, e.to_string()),
+        (line, Some(message)) => (line, message),
     }
 }
 
 /// Why the workflow at `path` cannot be run, if it cannot.
-fn compile(workflows: &Workflows, path: &str) -> Option<(Option<usize>, String)> {
+fn compile(workflows: &Sources, path: &str) -> Option<(Option<usize>, String)> {
     let rt = match Runtime::new() {
         Ok(rt) => rt,
         Err(e) => return Some((None, format!("the engine did not start: {e}"))),
@@ -177,7 +100,7 @@ pub fn check(files: &Files, id: &str, out: &mut Vec<Refusal>) {
         .filter(|(p, _)| p.ends_with(".js"))
         .map(|(p, t)| (p.to_string(), t.to_string()))
         .collect();
-    let workflows = Workflows {
+    let workflows = Sources {
         dir,
         files: Arc::new(sources),
     };

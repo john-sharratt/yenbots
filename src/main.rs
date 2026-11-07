@@ -15,12 +15,15 @@ mod config;
 mod data;
 mod gate;
 mod git;
+mod jobs;
 mod library;
 mod logs;
 mod publish;
+mod reshape;
 mod serve;
 mod store;
 mod version;
+mod workflows;
 
 #[cfg(test)]
 mod framework_tests;
@@ -38,12 +41,13 @@ use app::App;
 use apps::Apps;
 use config::Config;
 use data::changes::Changes;
+use jobs::scheduler::{self, sync_all, Jobs};
 use library::Library;
 use logs::browser::Repeats;
 use logs::layer::StoreLayer;
 use logs::Logs;
 use publish::Reloads;
-use store::{backups, Store};
+use store::Store;
 use version::{asks_for_build, BuildInfo};
 
 /// The whole line keep's trial waits for on stderr before it keeps a new
@@ -75,51 +79,54 @@ async fn main() -> Result<()> {
         .with(StoreLayer::new(logs.clone()))
         .init();
 
-    backups::start(store.clone(), cfg.backups_dir());
     let key = std::fs::read_to_string(&cfg.bus.key_file)
         .with_context(|| format!("reading the bus key {}", cfg.bus.key_file.display()))?
         .trim()
         .to_string();
     let reloads = Reloads::new();
-    let apps = Apps::open(cfg.live_dir.clone());
+    let apps = Apps::open(cfg.live_dir.clone(), store.clone());
     let library = Library::new(cfg.live_dir.clone(), cfg.library_cache_dir());
-    {
-        // The library is read once at start, then again — with the apps —
-        // on each move of the live checkout.
-        let (apps, library, mut moved) = (apps.clone(), library.clone(), reloads.subscribe());
-        tokio::spawn(async move {
-            let first = library.clone();
-            let _ = tokio::task::spawn_blocking(move || first.reload()).await;
-            while moved.recv().await.is_ok() {
-                let (apps, library) = (apps.clone(), library.clone());
-                let _ = tokio::task::spawn_blocking(move || {
-                    apps.reload();
-                    library.reload();
-                })
-                .await;
-            }
-        });
-    }
-    publish::start(
-        cfg.live_dir.clone(),
-        cfg.bus.url.clone(),
-        key,
-        reloads.clone(),
-    );
     let build = BuildInfo::this();
     let bind = cfg.bind;
+    let live_dir = cfg.live_dir.clone();
+    let bus_url = cfg.bus.url.clone();
     let app = Arc::new(App {
         cfg,
         store,
         logs,
         apps,
         library,
-        reloads,
+        reloads: reloads.clone(),
         changes: Changes::new(),
+        jobs: Jobs::new(),
         repeats: Repeats::new(),
         build: build.clone(),
         started_ms: accounts::now_ms(),
     });
+    {
+        // The library is read once at start, then again — with the apps and
+        // their jobs — on each move of the live checkout.
+        let (app, mut moved) = (app.clone(), reloads.subscribe());
+        tokio::spawn(async move {
+            let first = app.library.clone();
+            let _ = tokio::task::spawn_blocking(move || first.reload()).await;
+            while moved.recv().await.is_ok() {
+                let app = app.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    app.apps.reload();
+                    app.library.reload();
+                    if let Err(e) = sync_all(&app, accounts::now_ms()) {
+                        tracing::error!(target: "yenbot::jobs", "the platform's jobs could not be made: {e:#}");
+                    }
+                    app.jobs.wake();
+                })
+                .await;
+            }
+        });
+    }
+    publish::start(live_dir, bus_url, key, reloads);
+    scheduler::start(app.clone());
+    reshape::start(app.clone());
     let listener = tokio::net::TcpListener::bind(bind)
         .await
         .with_context(|| format!("binding {bind}"))?;

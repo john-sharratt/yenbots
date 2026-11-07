@@ -136,6 +136,23 @@ pub fn audience(conn: &Connection, m: &Manifest, coll: &str, id: &str) -> Result
     Ok((Audience::Principals(who), version))
 }
 
+/// The change `op` made to record `id` of `coll`, with who hears of it,
+/// read inside the write's transaction.
+pub fn change_of(conn: &Connection, m: &Manifest, coll: &str, id: &str, op: Op) -> Result<Changed> {
+    let (audience, version) = match op {
+        Op::Deleted => (Audience::App, 0),
+        Op::Created | Op::Updated => audience(conn, m, coll, id)?,
+    };
+    Ok(Changed {
+        app: m.id.clone(),
+        coll: coll.to_string(),
+        id: id.to_string(),
+        op,
+        version,
+        audience,
+    })
+}
+
 /// Both audiences: a record whose shares changed is told to those it was
 /// shared with and those it now is, so the ones it left drop it.
 pub fn either(a: Audience, b: Audience) -> Audience {

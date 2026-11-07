@@ -103,6 +103,65 @@ pub const STEPS: &[&str] = &[
       expires_ms  INTEGER NOT NULL
     );
     "#,
+    // 3 — jobs and their runs, what a workflow did once, and the shape each
+    // record is at.
+    r#"
+    CREATE TABLE jobs (
+      id          TEXT PRIMARY KEY,
+      app         TEXT NOT NULL,      -- '_platform' for the platform's own
+      workflow    TEXT NOT NULL,
+      args        TEXT NOT NULL,      -- JSON
+      source      TEXT NOT NULL,      -- 'schedule:<n>' | 'record:<n>:<coll>/<id>' | 'write:<coll>/<id>' | 'workflow'
+      rule        TEXT,               -- a repeating job's rule
+      catch_up    INTEGER NOT NULL DEFAULT 0,
+      next_ms     INTEGER,            -- when it is due; NULL: not again
+      attempts    INTEGER NOT NULL DEFAULT 0,
+      state       TEXT NOT NULL CHECK (state IN ('waiting', 'running', 'held', 'done', 'failed')),
+      run_as      TEXT,               -- the account it acts for; the app's own when NULL
+      updated_ms  INTEGER NOT NULL
+    );
+    CREATE INDEX jobs_due ON jobs (next_ms) WHERE state = 'waiting';
+    CREATE INDEX jobs_by_app ON jobs (app, source);
+
+    CREATE TABLE job_runs (
+      id          INTEGER PRIMARY KEY,
+      job         TEXT,               -- NULL for a workflow run at once
+      app         TEXT NOT NULL,
+      workflow    TEXT NOT NULL,
+      started_ms  INTEGER NOT NULL,
+      ended_ms    INTEGER NOT NULL,
+      outcome     TEXT NOT NULL CHECK (outcome IN ('ok', 'failed')),
+      error       TEXT,
+      log         TEXT NOT NULL
+    );
+    CREATE INDEX job_runs_by_job ON job_runs (job, started_ms);
+    CREATE INDEX job_runs_by_app ON job_runs (app, started_ms);
+
+    -- What `ctx.once(key, fn)` answered, so a run repeated does not do it again.
+    CREATE TABLE job_once (
+      app       TEXT NOT NULL,
+      key       TEXT NOT NULL,
+      value     TEXT NOT NULL,        -- JSON
+      at_ms     INTEGER NOT NULL,
+      PRIMARY KEY (app, key)
+    );
+
+    -- The version of its collection's shape a record was written at (§7.5).
+    ALTER TABLE docs ADD COLUMN shape INTEGER NOT NULL DEFAULT 1;
+
+    -- A collection's migration to a new shape, and how far it has come.
+    CREATE TABLE reshapes (
+      app         TEXT NOT NULL,
+      coll        TEXT NOT NULL,
+      shape       INTEGER NOT NULL,   -- the shape it is taking the records to
+      done        INTEGER NOT NULL,
+      total       INTEGER NOT NULL,
+      state       TEXT NOT NULL CHECK (state IN ('running', 'done', 'failed')),
+      error       TEXT,
+      updated_ms  INTEGER NOT NULL,
+      PRIMARY KEY (app, coll)
+    );
+    "#,
 ];
 
 /// The schema this build makes.

@@ -21,6 +21,9 @@ use crate::apps::manifest::Scope;
 use crate::config::Registration;
 use crate::data::changes::Feed;
 use crate::data::docs::{self, Query as DocQuery};
+use crate::jobs::scheduler::sync_all;
+use crate::jobs::sync::sync;
+use crate::reshape;
 use crate::store::{backups, restore};
 
 /// Run `work` on the blocking pool for an admin caller.
@@ -238,13 +241,18 @@ pub async fn apps_check(
 ) -> Response {
     as_admin(s, method, headers, move |s, _| match s.apps.checked(&id) {
         None => no_app(&id),
-        Some(c) => ok(json!({
-            "app": id,
-            "ok": c.refusals.is_empty(),
-            "commit": c.commit,
-            "serving": c.serving,
-            "refusals": c.refusals,
-        })),
+        Some(c) => match reshape::of_app(&s.store.conn(), &id) {
+            Ok(migrations) => ok(json!({
+                "app": id,
+                "ok": c.refusals.is_empty(),
+                "commit": c.commit,
+                "serving": c.serving,
+                "refusals": c.refusals,
+                "migrating": c.migrating,
+                "migrations": migrations,
+            })),
+            Err(e) => internal(e),
+        },
     })
     .await
 }
@@ -467,7 +475,17 @@ pub async fn backups_restore(
         };
         match done {
             Ok(r) => {
-                // Every open page of what came back reads it all again.
+                // What came back has its jobs again — a reminder's with its
+                // record — and every open page of it reads it all again.
+                let now = now_ms();
+                let resynced = match asked.app.as_deref().and_then(|a| s.apps.get(a)) {
+                    Some(m) => sync(&mut s.store.conn(), &m, &s.cfg.zone(), now),
+                    None => sync_all(s, now),
+                };
+                if let Err(e) = resynced {
+                    tracing::error!(target: "yenbot::jobs", "after the restore, its jobs could not be brought into step: {e:#}");
+                }
+                s.jobs.wake();
                 s.changes.send(Feed::Reset(asked.app.clone()));
                 ok(json!({
                 "restored": date,

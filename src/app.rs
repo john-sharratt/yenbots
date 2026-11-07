@@ -1,12 +1,13 @@
 //! What every request is served with: the config, the store, the logs, the
-//! apps, the art library, the open pages' reload signal and the records'
-//! change feed.
+//! apps, the art library, the open pages' reload signal, the records'
+//! change feed and the scheduler's wake.
 
 use std::sync::Arc;
 
 use crate::apps::Apps;
 use crate::config::Config;
 use crate::data::changes::Changes;
+use crate::jobs::scheduler::Jobs;
 use crate::library::Library;
 use crate::logs::browser::Repeats;
 use crate::logs::Logs;
@@ -22,6 +23,7 @@ pub struct App {
     pub library: Library,
     pub reloads: Reloads,
     pub changes: Changes,
+    pub jobs: Jobs,
     /// The browsers' errors seen in the last minute, counted.
     pub repeats: Repeats,
     pub build: BuildInfo,

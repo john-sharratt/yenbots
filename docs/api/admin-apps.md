@@ -34,6 +34,12 @@ without one. While the app as it now is stands refused, `serving` names the
 commit whose version is served instead — `null` for an app refused the first
 time it was seen, which is not served at all.
 
+An app that passes but raises a collection's `version` is served its last
+good version the same way while its records are migrated: `migrating` names
+the collections still behind, and `migrations` says how far each collection's
+last migration came — `running`, `done`, or `failed` with the record and why
+(`docs/workflows.md`).
+
 | Parameter | In | |
 |---|---|---|
 | `id` | path | the app's id |
@@ -48,7 +54,10 @@ GET /api/v1/admin/apps/recipes/check
 200
 {"app": "recipes", "ok": false, "commit": "9b1e…", "serving": "4f1c…",
  "refusals": [{"path": "apps/recipes/style.css", "line": 2, "rule": "tokens",
-               "message": "uses the colour `#c2375b`; use a token: var(--yen-accent), var(--yen-ink), …"}]}
+               "message": "uses the colour `#c2375b`; use a token: var(--yen-accent), var(--yen-ink), …"}],
+ "migrating": [],
+ "migrations": [{"coll": "dishes", "shape": 2, "done": 41, "total": 41, "state": "done",
+                 "updated_ms": 1793960400000}]}
 ```
 
 ### `PUT /api/v1/admin/apps/{id}/visibility`

@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
+use jiff::tz::TimeZone;
 use serde::{Deserialize, Serialize};
 
 /// How a new account becomes active.
@@ -38,6 +39,9 @@ pub struct Config {
     pub admins: Vec<String>,
     #[serde(default)]
     pub registration: Registration,
+    /// Yen's time zone, which repeat rules, `ctx.time` and the backups'
+    /// names are read in (§9.2).
+    pub time_zone: String,
     /// The gateway's bus, where the site hears of every push to its
     /// repository (`repo/yenbot`) and fast-forwards its live checkout.
     pub bus: Bus,
@@ -87,7 +91,18 @@ impl Config {
                 cfg.bind
             );
         }
+        TimeZone::get(&cfg.time_zone).with_context(|| {
+            format!(
+                "`time_zone` is `{}`, not a time zone: as `Australia/Sydney`",
+                cfg.time_zone
+            )
+        })?;
         Ok(cfg)
+    }
+
+    /// Yen's time zone.
+    pub fn zone(&self) -> TimeZone {
+        TimeZone::get(&self.time_zone).expect("the time zone is read when the config is loaded")
     }
 
     /// Whether `email` is an admin's.
@@ -120,7 +135,7 @@ impl Config {
 mod tests {
     use super::*;
 
-    const OK: &str = "data_dir: data\nlive_dir: live\nadmins: [Yen@Example.com]\n\
+    const OK: &str = "data_dir: data\nlive_dir: live\nadmins: [Yen@Example.com]\ntime_zone: Australia/Sydney\n\
                       bus: {url: \"ws://127.0.0.1/gateway/events\", key_file: secrets/gateway.key}\n";
 
     #[test]
@@ -154,7 +169,16 @@ mod tests {
 
     #[test]
     fn a_config_that_cannot_be_run_is_refused() {
-        let bus = "bus: {url: u, key_file: k}\n";
+        let bus = "time_zone: UTC\nbus: {url: u, key_file: k}\n";
+        let unzoned = Config::from_yaml(
+            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntime_zone: Sydney\nbus: {url: u, key_file: k}\n",
+            Path::new("."),
+        )
+        .unwrap_err();
+        assert_eq!(
+            unzoned.to_string(),
+            "`time_zone` is `Sydney`, not a time zone: as `Australia/Sydney`"
+        );
         for bad in [
             format!("data_dir: d\nlive_dir: l\n{bus}"),
             format!("data_dir: d\nlive_dir: l\nadmins: [a@b.c]\nbind: \"0.0.0.0:8096\"\n{bus}"),

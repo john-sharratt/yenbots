@@ -24,6 +24,7 @@ pub mod asset;
 pub mod data;
 pub mod errors;
 pub mod events;
+pub mod jobs;
 pub mod library;
 pub mod me;
 pub mod openapi;
@@ -87,6 +88,7 @@ mod tests {
     use crate::apps::Apps;
     use crate::config::Config;
     use crate::data::changes::{Changes, Feed};
+    use crate::jobs::scheduler::{sync_all, Jobs};
     use crate::library::Library;
     use crate::logs::browser::Repeats;
     use crate::logs::{Level, Line, Logs};
@@ -106,7 +108,8 @@ mod tests {
         let store = Arc::new(Store::in_memory().unwrap());
         Arc::new(App {
             cfg: Config::from_yaml(
-                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nbus: {url: u, key_file: k}\n",
+                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\ntime_zone: Australia/Sydney\n\
+                 bus: {url: u, key_file: k}\n",
                 Path::new("."),
             )
             .unwrap(),
@@ -115,6 +118,7 @@ mod tests {
             library,
             reloads: Reloads::new(),
             changes: Changes::new(),
+            jobs: Jobs::new(),
             repeats: Repeats::new(),
             store,
             build: BuildInfo::this(),
@@ -200,7 +204,7 @@ mod tests {
         let (status, body) = get_as(&app(), "/v1/status", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
-        assert_eq!(body["store"]["schema"], 2);
+        assert_eq!(body["store"]["schema"], 3);
     }
 
     async fn call(
@@ -496,7 +500,10 @@ mod tests {
             "export default async function remind() {}",
         )
         .unwrap();
-        let app = serving(Apps::open(dir.path()));
+        let app = serving(Apps::open(
+            dir.path(),
+            Arc::new(Store::in_memory().unwrap()),
+        ));
         let theme = theme::href("home", &Theme::default()).unwrap();
         let page = format!(
             "<head>\n  <base href=\"/a/home/\">\n  <link rel=\"stylesheet\" href=\"/_/yen.css\">\n  <link \
@@ -527,6 +534,84 @@ mod tests {
                 "{hidden}"
             );
         }
+    }
+
+    /// **A workflow runs now through the API, as the caller or — for an
+    /// admin — as the app; its job is listed, run now, held and released.**
+    #[tokio::test]
+    async fn workflows_and_jobs_through_the_api() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("apps").join("home");
+        std::fs::create_dir_all(home.join("workflows")).unwrap();
+        let schedules = "schedules:\n  - every: daily 07:30\n    run: hello\n";
+        std::fs::write(home.join("app.yaml"), format!("{HOME}{schedules}")).unwrap();
+        std::fs::write(
+            home.join("workflows").join("hello.js"),
+            "export default async function hello(ctx, { name }) {\n\
+               ctx.log('hello', name);\n\
+               if (name === 'x') throw new Error('not x');\n\
+               return { to: name, as: ctx.account };\n\
+             }",
+        )
+        .unwrap();
+        let app = serving(Apps::open(
+            dir.path(),
+            Arc::new(Store::in_memory().unwrap()),
+        ));
+        let yen = ("1", "yen@example.com");
+        let hello = "/api/v1/workflows/home/hello";
+        let (status, ran) =
+            call(&app, "POST", hello, yen, Some(json!({"name": "Mai"})), true).await;
+        assert_eq!(status, StatusCode::OK, "{ran}");
+        assert_eq!(ran["value"], json!({"to": "Mai", "as": "1"}));
+        assert_eq!(ran["log"], json!(["hello Mai"]));
+        let (status, failed) =
+            call(&app, "POST", hello, yen, Some(json!({"name": "x"})), true).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(failed["detail"], "apps/home/workflows/hello.js:3 not x");
+        let (status, _) = call(&app, "POST", "/api/v1/workflows/home/nope", yen, None, true).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let as_app = "/api/v1/admin/workflows/home/hello";
+        let (_, ran) = call(&app, "POST", as_app, yen, Some(json!({"name": "Bo"})), true).await;
+        assert_eq!(ran["value"], json!({"to": "Bo", "as": null}));
+
+        sync_all(&app, 0).unwrap();
+        let (_, mine) = call(&app, "GET", "/api/v1/jobs/home", yen, None, false).await;
+        let jobs = mine["jobs"].as_array().unwrap();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(
+            (jobs[0]["workflow"].as_str(), jobs[0]["state"].as_str()),
+            (Some("hello"), Some("waiting"))
+        );
+        assert!(
+            jobs[0].get("args").is_none(),
+            "not shown to the app's pages"
+        );
+        let id = jobs[0]["id"].as_str().unwrap().to_string();
+        let (_, all) = call(&app, "GET", "/api/v1/admin/jobs?app=home", yen, None, false).await;
+        assert_eq!(all["jobs"][0]["args"], json!({}));
+        let (_, bad) = call(
+            &app,
+            "GET",
+            "/api/v1/admin/jobs?state=asleep",
+            yen,
+            None,
+            false,
+        )
+        .await;
+        assert_eq!(bad["error"], "bad_state");
+        let act = |what: &str| format!("/api/v1/admin/jobs/{id}/{what}");
+        let (_, held) = call(&app, "POST", &act("hold"), yen, None, true).await;
+        assert_eq!(held["job"]["state"], "held");
+        let (status, again) = call(&app, "POST", &act("hold"), yen, None, true).await;
+        assert_eq!(
+            (status, again["error"].as_str()),
+            (StatusCode::CONFLICT, Some("refused"))
+        );
+        let (_, released) = call(&app, "POST", &act("release"), yen, None, true).await;
+        assert_eq!(released["job"]["state"], "waiting");
+        let (_, now) = call(&app, "POST", &act("run"), yen, None, true).await;
+        assert!(now["job"]["next_ms"].as_i64().unwrap() > 1_000, "due now");
     }
 
     /// **An app's theme is served as its stylesheet**, an app with none as an
@@ -576,7 +661,8 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
             body,
-            json!({"app": "home", "ok": true, "commit": null, "serving": null, "refusals": []})
+            json!({"app": "home", "ok": true, "commit": null, "serving": null, "refusals": [],
+                   "migrating": [], "migrations": []})
         );
         let (status, body) = get_as(&app, "/api/v1/admin/apps/nope/check", yen).await;
         assert_eq!(

@@ -16,6 +16,9 @@ use super::Store;
 /// The first schema step that holds the apps' records.
 const RECORDS_FROM: u32 = 2;
 
+/// The first schema step that records each record's shape.
+const SHAPES_FROM: u32 = 3;
+
 /// Back up the store as it is into `dir`, before a restore replaces it.
 fn keep_replaced(conn: &Connection, dir: &Path, now: i64) -> Result<PathBuf> {
     std::fs::create_dir_all(dir).with_context(|| format!("making {}", dir.display()))?;
@@ -72,8 +75,16 @@ fn put_back(conn: &mut Connection, app: &str, collections: Option<&[String]>) ->
         let sql = format!("DELETE FROM main.{table} WHERE {only}");
         tx.execute(&sql, params![app, named])?;
     }
+    // A backup from before records kept their shape holds them all at the
+    // first, which the column's default gives them; the app's migrations
+    // then take them up to its own (`crate::reshape`).
+    let columns = if at >= SHAPES_FROM {
+        "app, coll, id, owner, data, version, created_ms, updated_ms, shape"
+    } else {
+        "app, coll, id, owner, data, version, created_ms, updated_ms"
+    };
     let records = tx.execute(
-        &format!("INSERT INTO main.docs SELECT * FROM b.docs WHERE {only}"),
+        &format!("INSERT INTO main.docs ({columns}) SELECT {columns} FROM b.docs WHERE {only}"),
         params![app, named],
     )?;
     tx.execute(
@@ -112,8 +123,19 @@ pub fn whole(store: &Store, from: &Path, dir: &Path, now: i64) -> Result<Restore
 
 #[cfg(test)]
 mod tests {
+    use jiff::tz::TimeZone;
+
     use super::*;
-    use crate::store::backups::{back_up, file_for};
+    use crate::store::backups;
+    use crate::store::migrations::STEPS;
+
+    fn back_up(store: &Store, dir: &Path, at_ms: i64) -> Result<Option<PathBuf>> {
+        backups::back_up(store, dir, at_ms, &TimeZone::UTC)
+    }
+
+    fn file_for(dir: &Path, at_ms: i64) -> PathBuf {
+        backups::file_for(dir, at_ms, &TimeZone::UTC)
+    }
 
     fn put(store: &Store, app: &str, coll: &str, id: &str, body: &str) {
         let conn = store.conn();
@@ -218,6 +240,41 @@ mod tests {
         let e = whole(&store, &newer, dir.path(), 1).unwrap_err();
         assert!(e.to_string().contains("newer"), "{e}");
         assert_eq!(ids(&store), ["home/notes/n1"]);
+    }
+
+    /// **A backup from before records kept their shape restores them at the
+    /// first**, for the app's migrations to take up.
+    #[test]
+    fn a_backup_from_before_shapes_restores_at_the_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(&dir.path().join("yenbot.db")).unwrap();
+        let old = dir.path().join("old.db");
+        let c = Connection::open(&old).unwrap();
+        c.execute_batch("CREATE TABLE schema_version (version INTEGER NOT NULL);")
+            .unwrap();
+        for (i, step) in STEPS[..2].iter().enumerate() {
+            c.execute_batch(step).unwrap();
+            c.execute("INSERT INTO schema_version VALUES (?1)", [i + 1])
+                .unwrap();
+        }
+        c.execute(
+            "INSERT INTO docs (app, coll, id, owner, data, version, created_ms, updated_ms) \
+             VALUES ('home', 'notes', 'n1', '1', '{}', 1, 0, 0)",
+            [],
+        )
+        .unwrap();
+        drop(c);
+        assert_eq!(
+            app(&store, &old, "home", None, dir.path(), 1)
+                .unwrap()
+                .records,
+            1
+        );
+        let shape: u32 = store
+            .conn()
+            .query_row("SELECT shape FROM docs WHERE id = 'n1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(shape, 1);
     }
 
     /// **A backup from before the records existed restores no app.**

@@ -9,6 +9,8 @@ admins:
   - johnathan.sharratt@gmail.com
 # A new account waits for an admin's approval.
 registration: approve
+# Yen's time zone: repeat rules, `ctx.time` and the backups' names read it.
+time_zone: Australia/Sydney
 # The gateway's bus on this machine: every push to the repository arrives on
 # `repo/yenbot`, and the live checkout is fast-forwarded (docs/running.md).
 bus:

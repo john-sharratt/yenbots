@@ -12,6 +12,7 @@ One line per doc: when to read it. Read only what the task needs.
 | `check.md` | a change was refused, or before writing one: every rule the platform holds an app to, and what to do instead |
 | `design.md` | how an app looks: the tokens, an app's theme, the icons, every component, type — with `/_design` open beside it |
 | `library.md` | an app needs a picture — a tile, a header, an empty state, a sticker — or a picture must be drawn and added |
+| `workflows.md` | an app does something on its own — a reminder, a daily summary, a note when something changes — or a collection's fields change shape |
 
 The rest of the manual — the app-building guide, calling the API from
 a task step by step — arrives with the parts of the platform it describes

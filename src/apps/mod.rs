@@ -8,9 +8,14 @@
 //! files of the commit it last passed at, served from the repository's
 //! objects rather than the working tree. The refusals are logged under the
 //! app's name and kept for the admin page.
+//!
+//! An app that passes but raises a collection's version keeps its last good
+//! version the same way while its records are migrated (§7.5,
+//! [`crate::reshape`]); it is served as it now is once none is left behind.
 
 pub mod access;
 pub mod manifest;
+pub mod schedule;
 pub mod theme;
 
 use std::collections::BTreeMap;
@@ -18,10 +23,13 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
+use tokio::sync::Notify;
 
 use crate::check::files::from_disk;
 use crate::check::{check_app, told, Before, Refusal};
 use crate::git::git;
+use crate::reshape::migrate::behind;
+use crate::store::Store;
 use manifest::Manifest;
 
 /// Where an app's files are served from.
@@ -51,24 +59,35 @@ pub struct Checked {
     /// The checkout's commit checked.
     pub commit: Option<String>,
     pub refusals: Vec<Refusal>,
-    /// The commit whose files are served while these are refused; `None`
-    /// when the app passed, or was refused with no good version to keep.
+    /// The commit whose files are served while these are refused, or while
+    /// its records are migrated; `None` when the app is served as it is,
+    /// or has no good version to keep.
     pub serving: Option<String>,
+    /// The collections whose records are being taken up to the version the
+    /// app now declares.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub migrating: Vec<String>,
 }
 
 #[derive(Default)]
 struct State {
     served: BTreeMap<String, Served>,
     checked: BTreeMap<String, Checked>,
+    /// The manifests that passed and wait for their records' migration.
+    pending: BTreeMap<String, Arc<Manifest>>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Apps {
     /// The live checkout.
     root: PathBuf,
     /// Its `apps/`.
     dir: PathBuf,
+    /// Where the apps' records are, to see whether any is behind.
+    store: Arc<Store>,
     state: Arc<RwLock<State>>,
+    /// Woken when an app waits for its records' migration.
+    migrations: Arc<Notify>,
 }
 
 /// The commit the checkout at `root` holds, when it is one.
@@ -77,13 +96,16 @@ fn head(root: &Path) -> Option<String> {
 }
 
 impl Apps {
-    /// The apps of the live checkout at `root`, under its `apps/`, read now.
-    pub fn open(root: impl Into<PathBuf>) -> Apps {
+    /// The apps of the live checkout at `root`, under its `apps/`, with
+    /// their records in `store`, read now.
+    pub fn open(root: impl Into<PathBuf>, store: Arc<Store>) -> Apps {
         let root = root.into();
         let apps = Apps {
             dir: root.join("apps"),
             root,
+            store,
             state: Arc::default(),
+            migrations: Arc::default(),
         };
         apps.reload();
         apps
@@ -92,6 +114,22 @@ impl Apps {
     /// The live checkout the apps are part of.
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// The commit the live checkout holds.
+    pub fn head(&self) -> Option<String> {
+        head(&self.root)
+    }
+
+    /// What wakes the migrations' worker.
+    pub fn migrations(&self) -> Arc<Notify> {
+        self.migrations.clone()
+    }
+
+    /// The manifests that passed and wait for their records' migration.
+    pub fn pending(&self) -> Vec<Arc<Manifest>> {
+        let state = self.state.read().unwrap_or_else(|e| e.into_inner());
+        state.pending.values().cloned().collect()
     }
 
     /// Read and check every app again: one that passes is served as it now
@@ -103,6 +141,7 @@ impl Apps {
         let mut state = self.state.write().unwrap_or_else(|e| e.into_inner());
         let mut served = BTreeMap::new();
         let mut checked = BTreeMap::new();
+        let mut pending = BTreeMap::new();
         for id in ids {
             let was = state.served.get(&id);
             let refusals = match from_disk(&root, &id) {
@@ -126,20 +165,47 @@ impl Apps {
                 // The check read and took the manifest, so it parses.
                 let text = std::fs::read_to_string(self.dir.join(&id).join("app.yaml"))
                     .unwrap_or_default();
-                if let Ok(m) = Manifest::parse(&text, &id) {
-                    served.insert(
-                        id.clone(),
-                        Served {
-                            manifest: Arc::new(m),
-                            good: commit.clone(),
-                            kept: false,
-                        },
+                let Ok(m) = Manifest::parse(&text, &id) else {
+                    continue;
+                };
+                let migrating = behind(&self.store.conn(), &m).unwrap_or_else(|e| {
+                    tracing::error!(target: "yenbot::apps", app = %id, "could not see whether its records are behind: {e:#}");
+                    Vec::new()
+                });
+                let mut serving = None;
+                if migrating.is_empty() {
+                    let now = Served {
+                        manifest: Arc::new(m),
+                        good: commit.clone(),
+                        kept: false,
+                    };
+                    served.insert(id.clone(), now);
+                } else {
+                    // The version it had is served, from the commit it had it
+                    // at, until its records are taken up to this one.
+                    if let Some(was) = was {
+                        serving = was.good.clone();
+                        let kept = Served {
+                            kept: true,
+                            ..was.clone()
+                        };
+                        served.insert(id.clone(), kept);
+                    }
+                    tracing::info!(
+                        target: "yenbot::apps",
+                        app = %id,
+                        collections = ?migrating,
+                        "its records are being migrated; {}",
+                        if serving.is_some() { "its last good version is served meanwhile" } else { "it opens once they are" }
                     );
+                    pending.insert(id.clone(), Arc::new(m));
                 }
                 checked.insert(
                     id,
                     Checked {
                         commit: commit.clone(),
+                        serving,
+                        migrating,
                         ..Checked::default()
                     },
                 );
@@ -167,10 +233,20 @@ impl Apps {
                     commit: commit.clone(),
                     refusals,
                     serving,
+                    migrating: Vec::new(),
                 },
             );
         }
-        *state = State { served, checked };
+        let wanted = !pending.is_empty();
+        *state = State {
+            served,
+            checked,
+            pending,
+        };
+        drop(state);
+        if wanted {
+            self.migrations.notify_one();
+        }
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<Manifest>> {
@@ -216,7 +292,13 @@ impl Apps {
     /// Apps held in memory, for tests.
     #[cfg(test)]
     pub fn of(manifests: Vec<Manifest>) -> Apps {
-        let apps = Apps::default();
+        let apps = Apps {
+            root: PathBuf::new(),
+            dir: PathBuf::new(),
+            store: Arc::new(Store::in_memory().expect("a store in memory opens")),
+            state: Arc::default(),
+            migrations: Arc::default(),
+        };
         let mut state = apps.state.write().unwrap();
         for m in manifests {
             state.checked.insert(m.id.clone(), Checked::default());

@@ -13,6 +13,8 @@ section names a parameter or field its route does not take.
 | [site](site.md) | who you are, the apps, reload events, the OpenAPI description |
 | [data](data.md) | an app's records: query, sum, search, create, read, update, delete, batch, share |
 | [library](library.md) | the art library's pictures, by kind, tag and colour |
+| [jobs](jobs.md) | an app's jobs, and running a workflow now |
+| [admin-jobs](admin-jobs.md) | every job: run now, hold, release; a workflow run as the app |
 | [admin-accounts](admin-accounts.md) | accounts, groups, registration |
 | [admin-apps](admin-apps.md) | apps' visibility, shares and order; every account's records |
 | [admin-tokens](admin-tokens.md) | API tokens |

@@ -1,35 +1,35 @@
 //! Nightly backups (`candle/docs/yenbot_app_host.md` §7.4): the store written
-//! whole with `VACUUM INTO` to `<data_dir>/backups/yenbot-YYYY-MM-DD.db`, one
-//! a day, the newest [`KEEP`] kept. `VACUUM INTO` writes a consistent copy
-//! while the site keeps serving.
+//! whole with `VACUUM INTO` to `<data_dir>/backups/yenbot-YYYY-MM-DD.db`,
+//! named for the day in Yen's time zone, one a day, the newest [`KEEP`]
+//! kept. `VACUUM INTO` writes a consistent copy while the site keeps
+//! serving. The platform's `backup` job runs it at 03:00
+//! ([`crate::jobs::platform`]).
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
+use jiff::tz::TimeZone;
+use jiff::Timestamp;
 use serde::Serialize;
 
 use super::Store;
-use crate::accounts::now_ms;
-use crate::logs::rfc3339;
 
 /// How many backups are kept.
 pub const KEEP: usize = 14;
 
-/// How often the backup job looks whether today's has been written.
-const CHECK: Duration = Duration::from_secs(15 * 60);
-
-/// The backup file for the day `at_ms` falls on (UTC).
-pub fn file_for(dir: &Path, at_ms: i64) -> PathBuf {
-    dir.join(format!("yenbot-{}.db", &rfc3339(at_ms)[..10]))
+/// The backup file for the day `at_ms` falls on in the zone `tz`.
+pub fn file_for(dir: &Path, at_ms: i64, tz: &TimeZone) -> PathBuf {
+    let day = Timestamp::from_millisecond(at_ms)
+        .map(|t| t.to_zoned(tz.clone()).date().to_string())
+        .unwrap_or_else(|_| "0000-00-00".into());
+    dir.join(format!("yenbot-{day}.db"))
 }
 
 /// Write today's backup into `dir` unless it exists, then drop all but the
 /// newest [`KEEP`]. Answers the file written, if one was.
-pub fn back_up(store: &Store, dir: &Path, at_ms: i64) -> Result<Option<PathBuf>> {
+pub fn back_up(store: &Store, dir: &Path, at_ms: i64, tz: &TimeZone) -> Result<Option<PathBuf>> {
     std::fs::create_dir_all(dir).with_context(|| format!("making {}", dir.display()))?;
-    let file = file_for(dir, at_ms);
+    let file = file_for(dir, at_ms, tz);
     let written = if file.exists() {
         None
     } else {
@@ -111,32 +111,37 @@ pub fn held_file(dir: &Path, date: &str) -> Option<PathBuf> {
     (is_date(date) && file.is_file()).then_some(file)
 }
 
-/// The backup job: today's backup on start, and again whenever the day turns.
-pub fn start(store: Arc<Store>, dir: PathBuf) {
-    tokio::spawn(async move {
-        loop {
-            let (store, dir) = (store.clone(), dir.clone());
-            let done = tokio::task::spawn_blocking(move || back_up(&store, &dir, now_ms())).await;
-            match done {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => tracing::error!("store: the backup failed: {e:#}"),
-                Err(e) => tracing::error!("store: the backup panicked: {e}"),
-            }
-            tokio::time::sleep(CHECK).await;
-        }
-    });
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const DAY: i64 = 86_400_000;
 
+    fn back_up(store: &Store, dir: &Path, at_ms: i64) -> Result<Option<PathBuf>> {
+        super::back_up(store, dir, at_ms, &TimeZone::UTC)
+    }
+
+    fn file_for(dir: &Path, at_ms: i64) -> PathBuf {
+        super::file_for(dir, at_ms, &TimeZone::UTC)
+    }
+
+    /// **A backup is named for its day in Yen's zone**: 03:00 on the 7th in
+    /// Sydney is still the 6th in Greenwich.
     #[test]
     fn a_backup_is_named_by_its_day() {
         assert_eq!(
             file_for(Path::new("b"), 1_793_959_331_042),
+            Path::new("b").join("yenbot-2026-11-06.db")
+        );
+        let sydney = TimeZone::get("Australia/Sydney").unwrap();
+        // 2026-11-06T16:00Z is 03:00 on the 7th in Sydney.
+        let three = 1_793_980_800_000;
+        assert_eq!(
+            super::file_for(Path::new("b"), three, &sydney),
+            Path::new("b").join("yenbot-2026-11-07.db")
+        );
+        assert_eq!(
+            file_for(Path::new("b"), three),
             Path::new("b").join("yenbot-2026-11-06.db")
         );
     }

@@ -283,6 +283,10 @@ is "Due", `shopping-list` is "Shopping list".
 - **The art library**: `await app.library.find({kind, tag, colour})`
   answers its pictures, each with the address of every size
   (`library.md`).
+- **A workflow run now**: `await app.workflows.run(name, args)` runs one of
+  the app's workflows as the account — a "send it now" button — and answers
+  what it returned; a run that fails throws, `code` `workflow_failed`
+  (`workflows.md`).
 
 ## Where it lives
 

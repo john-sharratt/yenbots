@@ -4,11 +4,13 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context, Error, Result};
 use serde::{Deserialize, Serialize};
 
+use super::schedule::Schedule;
 use super::theme::tokens::Tokens;
 use super::theme::Theme;
+use crate::jobs::span;
 
 /// Whether an app is on the landing page yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -129,12 +131,8 @@ fn one() -> u32 {
     1
 }
 
-/// A job the manifest declares (§9.2): whatever makes it, it runs the
-/// workflow `run` names. The check holds `run` to a file in `workflows/`.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct Schedule {
-    pub run: String,
-}
+/// The longest a workflow may ask to run for (§10.3).
+pub const LONGEST_RUN_MS: i64 = 10 * 60_000;
 
 /// The manifest's fields this part of the platform reads.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -154,8 +152,14 @@ pub struct Manifest {
     pub guide: Option<u32>,
     #[serde(default)]
     pub collections: BTreeMap<String, Collection>,
+    /// Jobs (§9.2), each running a workflow the check holds to a file in
+    /// `workflows/`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub schedules: Vec<Schedule>,
+    /// How long each of its workflow runs may take, as `5m`, up to ten
+    /// minutes; a minute when absent (§10.3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline: Option<String>,
     /// The app's own look (§8.5), checked to read in both modes.
     #[serde(default)]
     pub theme: Theme,
@@ -225,8 +229,27 @@ impl Manifest {
                 }
             }
         }
+        for s in &m.schedules {
+            if !is_name(&s.run) {
+                bail!("`{}` is not a workflow's name", s.run);
+            }
+            s.kind(&m.collections).map_err(Error::msg)?;
+        }
+        m.deadline_ms().map_err(Error::msg)?;
         m.theme.check(Tokens::platform())?;
         Ok(m)
+    }
+
+    /// How long one of its workflow runs may take.
+    pub fn deadline_ms(&self) -> Result<i64, String> {
+        let Some(d) = &self.deadline else {
+            return Ok(60_000);
+        };
+        let ms = span::parse(d).map_err(|e| format!("deadline: {e}"))?;
+        if !(1_000..=LONGEST_RUN_MS).contains(&ms) {
+            return Err(format!("deadline: `{d}` is not from `1s` to `10m`"));
+        }
+        Ok(ms)
     }
 }
 
@@ -297,6 +320,35 @@ collections:
         assert_eq!(
             Manifest::parse(RECIPES, "recipes").unwrap().theme,
             Theme::default()
+        );
+    }
+
+    /// **A schedule and a deadline are read with the manifest**, and one
+    /// that cannot be run refuses it.
+    #[test]
+    fn a_manifest_reads_its_schedules_and_deadline() {
+        let with = |extra: &str| Manifest::parse(&format!("{RECIPES}{extra}"), "recipes");
+        let m =
+            with("schedules:\n  - every: weekly sun 19:00\n    run: plan-meals\ndeadline: 5m\n")
+                .unwrap();
+        assert_eq!(m.schedules[0].run, "plan-meals");
+        assert_eq!(m.deadline_ms(), Ok(300_000));
+        assert_eq!(
+            Manifest::parse(RECIPES, "recipes").unwrap().deadline_ms(),
+            Ok(60_000)
+        );
+        let told = |extra: &str| with(extra).unwrap_err().to_string();
+        assert_eq!(
+            told("schedules:\n  - from: recipes\n    at: serves\n    run: r\n"),
+            "the schedule running `r` is at `recipes.serves`, which is not a `time` field"
+        );
+        assert_eq!(
+            told("schedules:\n  - every: hourly\n    run: Remind\n"),
+            "`Remind` is not a workflow's name"
+        );
+        assert_eq!(
+            told("deadline: 11m\n"),
+            "deadline: `11m` is not from `1s` to `10m`"
         );
     }
 

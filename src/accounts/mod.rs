@@ -161,7 +161,7 @@ mod tests {
         Config::from_yaml(
             &format!(
                 "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\nregistration: {registration}\n\
-                 bus: {{url: u, key_file: k}}\n"
+                 time_zone: UTC\nbus: {{url: u, key_file: k}}\n"
             ),
             Path::new("."),
         )

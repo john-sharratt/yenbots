@@ -42,6 +42,17 @@ export class Sdk {
         return answer.pictures;
       },
     };
+    /**
+     * The app's workflows (§10.4): `run(name, args)` runs one now, as the
+     * account, and answers what it returned; a run that fails throws, its
+     * `code` `workflow_failed`.
+     */
+    this.workflows = {
+      run: async (name, args = {}) => {
+        const answer = await this.api.call("POST", `/workflows/${this.id}/${encodeURIComponent(name)}`, args);
+        return answer.value;
+      },
+    };
     this.queue = new Queue({
       send: (w) => this.send(w),
       storage,

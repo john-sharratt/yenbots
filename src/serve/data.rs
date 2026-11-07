@@ -19,7 +19,7 @@ use crate::accounts::now_ms;
 use crate::app::App;
 use crate::apps::access::{access_of, may_open};
 use crate::apps::manifest::{Manifest, Scope};
-use crate::data::changes::{audience, either, Audience, Changed, Feed, Op};
+use crate::data::changes::{change_of, either, Changed, Feed, Op};
 use crate::data::docs::{self, admits, Change, Query as DocQuery, Shares, Sum, Write, Wrote};
 
 pub fn no_app(id: &str) -> Response {
@@ -73,18 +73,7 @@ fn changed(
     id: &str,
     op: Op,
 ) -> Result<Changed, Response> {
-    let (audience, version) = match op {
-        Op::Deleted => (Audience::App, 0),
-        Op::Created | Op::Updated => audience(conn, m, coll, id).map_err(internal)?,
-    };
-    Ok(Changed {
-        app: m.id.clone(),
-        coll: coll.to_string(),
-        id: id.to_string(),
-        op,
-        version,
-        audience,
-    })
+    change_of(conn, m, coll, id, op).map_err(internal)
 }
 
 /// Commit `tx`, then tell the open pages of each of `changes`.
@@ -221,7 +210,7 @@ pub async fn remove(
             Ok(tx) => tx,
             Err(e) => return internal(e),
         };
-        match docs::delete(&tx, m, &coll, c, &id) {
+        match docs::delete(&tx, m, &coll, c, &id, now_ms()) {
             Ok(Ok(())) => {}
             Ok(Err(d)) => return denied(d),
             Err(e) => return internal(e),

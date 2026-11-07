@@ -5,7 +5,12 @@
 //! records are their owner's, and those shared with the caller or a group of
 //! theirs; a shared collection's are read and written by the accounts its
 //! `roles` name (`everyone`, or groups). An admin reads everything through
-//! the admin routes alone.
+//! the admin routes alone; a workflow running as its app reads and writes
+//! every record of the app's own collections.
+//!
+//! Every write keeps the app's jobs in step with it in its own transaction
+//! ([`written`]): a record's reminder moves with its time, and a write a
+//! `when:` hears makes its job (§9.2).
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -20,6 +25,7 @@ use super::search::{body_of, fold, index, unindex};
 use super::validate::{self, Refused};
 use crate::accounts::caller::Caller;
 use crate::apps::manifest::{Collection, Manifest, Scope, EVERYONE};
+use crate::jobs::follow::written;
 
 /// One record, as the API answers it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -72,9 +78,26 @@ pub fn collection<'m>(app: &'m Manifest, coll: &str) -> Answer<&'m Collection> {
         .ok_or_else(|| Denied::NoCollection(format!("{} has no collection `{coll}`", app.id)))
 }
 
-/// Whether a role list — `everyone`, or group names — names `caller`.
+/// Whether a role list — `everyone`, or group names — names `caller`. An
+/// app acting as itself is named by every list of its own.
 pub fn admits(names: &[String], caller: &Caller) -> bool {
-    names.iter().any(|n| n == EVERYONE) || caller.groups.iter().any(|g| names.contains(g))
+    caller.is_app()
+        || names.iter().any(|n| n == EVERYONE)
+        || caller.groups.iter().any(|g| names.contains(g))
+}
+
+impl Doc {
+    /// The record as a page and a workflow see it: its fields beside its
+    /// own names (`web/_/framework/records.js`).
+    pub fn record(&self) -> Value {
+        let mut out = self.data.as_object().cloned().unwrap_or_default();
+        out.insert("id".into(), json!(self.id));
+        out.insert("owner".into(), json!(self.owner));
+        out.insert("version".into(), json!(self.version));
+        out.insert("created_ms".into(), json!(self.created_ms));
+        out.insert("updated_ms".into(), json!(self.updated_ms));
+        Value::Object(out)
+    }
 }
 
 /// The share rows `caller` matches, as an SQL condition's parameters.
@@ -103,6 +126,9 @@ fn bad(why: impl Into<String>) -> Result<Answer<()>> {
 /// Whether `caller` may read rows of `c` — `?1` the caller's id and `?2`
 /// their principals as JSON — as an SQL condition.
 fn visible(c: &Collection, caller: &Caller) -> Option<&'static str> {
+    if caller.is_app() {
+        return Some("1");
+    }
     match c.scope {
         Scope::Private => Some(
             "(owner = ?1 OR EXISTS (SELECT 1 FROM shares s WHERE s.app = docs.app AND \
@@ -122,7 +148,7 @@ struct Place<'a> {
 
 /// Whether `caller` may change `doc`.
 fn may_edit(conn: &Connection, at: &Place<'_>, caller: &Caller, doc: &Doc) -> Result<bool> {
-    if doc.owner == caller.id() {
+    if doc.owner == caller.id() || caller.is_app() {
         return Ok(true);
     }
     let shared: bool = conn.query_row(
@@ -186,12 +212,30 @@ pub fn create(
         updated_ms: now,
     };
     tx.execute(
-        "INSERT INTO docs (app, coll, id, owner, data, version, created_ms, updated_ms) \
-         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
-        params![app.id, coll, doc.id, doc.owner, doc.data.to_string(), now],
+        "INSERT INTO docs (app, coll, id, owner, data, version, created_ms, updated_ms, shape) \
+         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6, ?7)",
+        params![
+            app.id,
+            coll,
+            doc.id,
+            doc.owner,
+            doc.data.to_string(),
+            now,
+            c.version
+        ],
     )?;
     index(tx, &app.id, coll, &doc.id, &body_of(&c.search, &doc.data))?;
+    written(tx, app, coll, None, Some(&doc), caller, now)?;
     Ok(Ok(doc))
+}
+
+/// Every record of `coll` in app `app`, whoever's, oldest first: for the
+/// platform's own work over a collection, never for a caller.
+pub fn all_of(conn: &Connection, app: &str, coll: &str) -> Result<Vec<Doc>> {
+    let sql = format!("SELECT {COLUMNS} FROM docs WHERE app = ?1 AND coll = ?2 ORDER BY id");
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params![app, coll], row)?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 pub fn get(
@@ -253,12 +297,14 @@ pub fn update(
     )?;
     unindex(tx, &app.id, coll, id)?;
     index(tx, &app.id, coll, id, &body_of(&at.c.search, &data))?;
-    Ok(Ok(Doc {
+    let doc = Doc {
         data,
         version: held.version + 1,
         updated_ms: now,
-        ..held
-    }))
+        ..held.clone()
+    };
+    written(tx, app, coll, Some(&held), Some(&doc), caller, now)?;
+    Ok(Ok(doc))
 }
 
 pub fn delete(
@@ -267,6 +313,7 @@ pub fn delete(
     coll: &str,
     caller: &Caller,
     id: &str,
+    now: i64,
 ) -> Result<Answer<()>> {
     let at = match place(app, coll) {
         Ok(at) => at,
@@ -288,6 +335,7 @@ pub fn delete(
         params![app.id, coll, id],
     )?;
     unindex(tx, &app.id, coll, id)?;
+    written(tx, app, coll, Some(&held), None, caller, now)?;
     Ok(Ok(()))
 }
 
@@ -663,7 +711,7 @@ pub fn batch(
             }
             Write::Delete { coll, id } => {
                 let deleted = id.clone();
-                delete(tx, app, coll, caller, id)?.map(|()| Wrote::Deleted { deleted })
+                delete(tx, app, coll, caller, id, now)?.map(|()| Wrote::Deleted { deleted })
             }
         };
         match done {

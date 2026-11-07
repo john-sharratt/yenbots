@@ -168,6 +168,28 @@ test("the library is found by kind, tag and colour", async () => {
   );
 });
 
+test("a workflow runs now and answers what it returned; one that fails throws", async () => {
+  const { s, calls } = sdk([
+    [200, { value: { planned: 7 }, log: ["planned"], ms: 3 }],
+    [422, { error: "workflow_failed", detail: "apps/home/workflows/plan.js:3 no week", log: [], ms: 1 }],
+  ]);
+  eq(await s.workflows.run("plan", { week: "2026-11-09" }), { planned: 7 });
+  let failed;
+  try {
+    await s.workflows.run("plan");
+  } catch (e) {
+    failed = e;
+  }
+  eq(failed.code, "workflow_failed");
+  eq(
+    calls.map((c) => [c.method, c.url, c.body]),
+    [
+      ["POST", "/api/v1/workflows/home/plan", { week: "2026-11-09" }],
+      ["POST", "/api/v1/workflows/home/plan", {}],
+    ],
+  );
+});
+
 test("an app not shared with the caller is closed", async () => {
   const { s } = sdk([
     [200, ME],
