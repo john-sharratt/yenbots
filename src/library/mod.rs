@@ -28,7 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::apps::theme::colour::Colour;
 use catalogue::Entry;
-use dominant::{dominant, nearest, EDITION};
+use dominant::{dominant, field, nearest, EDITION};
 use kind::Kind;
 use sizing::{decode, sized, webp, QUALITY};
 
@@ -215,7 +215,12 @@ impl Library {
                 for &(w, h) in sizes {
                     write_whole(&size_file(&dir, w, h), &webp(&sized(&img, w, h))?)?;
                 }
-                let c = dominant(&img).context("the picture is wholly transparent")?;
+                let read = if entry.kind == Kind::Tiles {
+                    field(&img)
+                } else {
+                    dominant(&img)
+                };
+                let c = read.context("the picture is wholly transparent")?;
                 write_whole(&colour_file, c.to_string().as_bytes())?;
                 c
             }

@@ -7,10 +7,13 @@
 //! read in buckets of 16 levels a channel and answered as the bucket's mean.
 //! A picture with no vivid pixels — a grey texture — is read over all of
 //! them. Transparent pixels are never read.
+//!
+//! A tile is the exception: what it shows on the landing page is its flat
+//! field, so its colour is the field's, read at its edge ([`field`]).
 
 use std::collections::BTreeMap;
 
-use image::RgbaImage;
+use image::{Rgba, RgbaImage};
 
 use crate::apps::theme::colour::Colour;
 use crate::apps::theme::tokens::Tokens;
@@ -22,7 +25,7 @@ pub const PALETTE: [&str; 8] = [
 
 /// The edition of how a colour is read, raised whenever the reading
 /// changes, so the colours cached by the last one are read again.
-pub const EDITION: u32 = 3;
+pub const EDITION: u32 = 4;
 
 /// A pixel this far between its highest and lowest channel is saturated.
 const SATURATED: u8 = 48;
@@ -34,10 +37,28 @@ const PALE: u8 = 144;
 
 /// The dominant colour of `img`; `None` for a picture with no opaque pixel.
 pub fn dominant(img: &RgbaImage) -> Option<Colour> {
+    read(img.pixels())
+}
+
+/// The colour of a tile's field: read over the ring of pixels at its edge,
+/// a thirty-second of its side deep, which a tile's flat field fills
+/// whatever stands in its middle.
+pub fn field(img: &RgbaImage) -> Option<Colour> {
+    let (w, h) = img.dimensions();
+    let deep = (w.min(h) / 32).max(1);
+    read(
+        img.enumerate_pixels()
+            .filter(|(x, y, _)| *x < deep || *y < deep || *x >= w - deep || *y >= h - deep)
+            .map(|(_, _, p)| p),
+    )
+}
+
+/// The dominant colour of `pixels`.
+fn read<'a>(pixels: impl Iterator<Item = &'a Rgba<u8>>) -> Option<Colour> {
     // bucket -> (count, sum r, sum g, sum b)
     let mut all: BTreeMap<u16, (u64, u64, u64, u64)> = BTreeMap::new();
     let mut vivid: BTreeMap<u16, (u64, u64, u64, u64)> = BTreeMap::new();
-    for p in img.pixels() {
+    for p in pixels {
         let [r, g, b, a] = p.0;
         if a < 128 {
             continue;
@@ -120,6 +141,22 @@ mod tests {
         ]);
         assert_eq!(dominant(&img).unwrap().to_string(), "#d4573d");
         // (212*3 + 210) / 4 = 211.5 → 212; (87*3+85)/4 = 86.5 → 87; (61*3+60)/4 = 60.75 → 61.
+    }
+
+    /// **A tile's colour is its field's**, however vivid its subject: a
+    /// soft sage field with a coral pot reads sage.
+    #[test]
+    fn a_tiles_colour_is_its_field() {
+        let mut img = RgbaImage::from_pixel(64, 64, Rgba([160, 185, 150, 255]));
+        for y in 8..56 {
+            for x in 8..56 {
+                img.put_pixel(x, y, Rgba([212, 87, 61, 255]));
+            }
+        }
+        assert_eq!(dominant(&img).unwrap().to_string(), "#d4573d");
+        let f = field(&img).unwrap();
+        assert_eq!(f.to_string(), "#a0b996");
+        assert_eq!(nearest(f), "sage");
     }
 
     #[test]
