@@ -102,7 +102,10 @@ CSV's first lines and how many rows it has.
 
 ## The token
 
-The `yenbot` credential is an API token named `zen`, made on the admin page
-for an admin's account, lasting a year (`docs/api/admin-tokens.md`). The
-site keeps only its hash. When it expires or is revoked, an admin makes a
-new one and it is saved in Zen again as `yenbot`.
+The `yenbot` credential is an API token named `zen`, made for an admin's
+account, lasting a year (`docs/api/admin-tokens.md`); the site keeps only its
+hash. Zen holds it on each member, as `http_bearer: {yenbot: …}` in the
+daemon's `~/.zend/secrets.yaml`, so every task's `http_session_open` finds it
+with no `credential_save`. When it expires or is revoked, an admin makes a new
+one (`POST /api/v1/admin/tokens`) and John puts it in each member's file; the
+daemon reads the file when it starts.
