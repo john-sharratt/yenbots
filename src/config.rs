@@ -45,6 +45,14 @@ pub struct Config {
     /// The gateway's bus, where the site hears of every push to its
     /// repository (`repo/yenbot`) and fast-forwards its live checkout.
     pub bus: Bus,
+    /// The gateway on this machine, through which the site reaches Zen's
+    /// model and image engine with the bus's service key (§14).
+    #[serde(default = "d_gateway")]
+    pub gateway: String,
+}
+
+fn d_gateway() -> String {
+    "http://127.0.0.1".into()
 }
 
 /// The gateway's bus: its WebSocket, and yenbot's service key for it.
@@ -123,6 +131,16 @@ impl Config {
     /// The nightly backups' folder.
     pub fn backups_dir(&self) -> PathBuf {
         self.data_dir.join("backups")
+    }
+
+    /// The apps' files.
+    pub fn files_dir(&self) -> PathBuf {
+        self.data_dir.join("files")
+    }
+
+    /// The copy of the apps' files beside the backups.
+    pub fn kept_files_dir(&self) -> PathBuf {
+        self.backups_dir().join("files")
     }
 
     /// Where the art library's sized pictures are kept.

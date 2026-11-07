@@ -5,8 +5,10 @@ use jiff::tz::TimeZone;
 use serde_json::json;
 
 use super::*;
+use crate::ai::fake::FakeZen;
 use crate::config::Config;
 use crate::data::changes::Changes;
+use crate::files::Files;
 use crate::notify::push::Pusher;
 use crate::store::Store;
 
@@ -26,6 +28,8 @@ fn env() -> Env {
         )
         .unwrap(),
         pusher: Pusher::channel().0,
+        zen: Arc::new(FakeZen::default()),
+        files: Files::new("files"),
     }
 }
 

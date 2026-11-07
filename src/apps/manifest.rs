@@ -152,6 +152,10 @@ pub struct Manifest {
     pub guide: Option<u32>,
     #[serde(default)]
     pub collections: BTreeMap<String, Collection>,
+    /// Whether its pages and workflows may use the AI and the image engine
+    /// (§14).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ai: bool,
     /// Whether its workflows may send notifications (§11).
     #[serde(default, skip_serializing_if = "is_false")]
     pub notify: bool,

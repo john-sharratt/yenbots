@@ -22,6 +22,7 @@ use crate::apps::manifest::Scope;
 use crate::config::Registration;
 use crate::data::changes::Feed;
 use crate::data::docs::{self, Query as DocQuery};
+use crate::files::mirror::bring_back;
 use crate::jobs::scheduler::sync_all;
 use crate::jobs::sync::sync;
 use crate::jobs::table::requeue_running;
@@ -489,6 +490,11 @@ pub async fn backups_restore(
                 // What came back has its jobs again — a reminder's with its
                 // record — and every open page of it reads it all again.
                 let now = now_ms();
+                if let Some(app) = &asked.app {
+                    if let Err(e) = bring_back(&s.cfg.kept_files_dir(), &s.cfg.files_dir(), app, &r.files) {
+                        tracing::error!(target: "yenbot::store", app = %app, "its files could not all be brought back: {e:#}");
+                    }
+                }
                 // A whole store comes back with the jobs that were running
                 // when it was written — the backup's own among them — which
                 // are due again, as after a restart.

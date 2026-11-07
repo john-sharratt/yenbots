@@ -14,6 +14,7 @@ use serde_json::json;
 use super::rule::Rule;
 use super::table::{insert, of_source, tidy, NewJob, PLATFORM};
 use crate::config::Config;
+use crate::files::mirror::mirror;
 use crate::store::backups::back_up;
 use crate::store::Store;
 
@@ -58,12 +59,14 @@ pub fn sync(conn: &Connection, tz: &TimeZone, now: i64) -> Result<()> {
 /// Run the platform's `workflow`; answers its log.
 pub fn run(workflow: &str, store: &Store, cfg: &Config, now: i64) -> Result<Vec<String>> {
     match workflow {
-        "backup" => Ok(vec![
-            match back_up(store, &cfg.backups_dir(), now, &cfg.zone())? {
+        "backup" => {
+            let written = match back_up(store, &cfg.backups_dir(), now, &cfg.zone())? {
                 Some(file) => format!("wrote {}", file.display()),
                 None => "today's backup was already written".to_string(),
-            },
-        ]),
+            };
+            let copied = mirror(&cfg.files_dir(), &cfg.kept_files_dir())?;
+            Ok(vec![written, format!("copied {copied} new files")])
+        }
         "tidy" => {
             let gone = tidy(&store.conn(), now - KEPT_MS)?;
             Ok(vec![format!("dropped {gone} jobs done a week ago")])
@@ -110,10 +113,16 @@ mod tests {
             .join("d")
             .join("backups")
             .join("yenbot-1970-01-01.db");
-        assert_eq!(log, [format!("wrote {}", file.display())]);
+        assert_eq!(
+            log,
+            [
+                format!("wrote {}", file.display()),
+                "copied 0 new files".to_string()
+            ]
+        );
         assert_eq!(
             run("backup", &store, &cfg, 1).unwrap(),
-            ["today's backup was already written"]
+            ["today's backup was already written", "copied 0 new files"]
         );
         assert!(run("nope", &store, &cfg, 0).is_err());
     }

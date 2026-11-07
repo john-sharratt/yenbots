@@ -14,9 +14,11 @@ use super::host::Host;
 use super::loader::Sources;
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
+use crate::ai::zen::Zen;
 use crate::apps::manifest::Manifest;
 use crate::config::Config;
 use crate::data::changes::Changes;
+use crate::files::Files;
 use crate::jobs::follow::acting;
 use crate::notify::push::Pusher;
 use crate::store::Store;
@@ -30,6 +32,10 @@ pub struct Env {
     /// The site's config: who the admins are, for `ctx.notify`.
     pub cfg: Config,
     pub pusher: Pusher,
+    /// Zen's model and image engine, for `ctx.ai`, and the apps' files its
+    /// pictures are kept as.
+    pub zen: Arc<dyn Zen>,
+    pub files: Files,
 }
 
 /// The job a run is of, as `ctx.job` shows it.
@@ -95,6 +101,8 @@ pub fn host_for(env: &Env, m: Arc<Manifest>, sources: Sources, caller: Caller) -
         zone: env.zone.clone(),
         cfg: env.cfg.clone(),
         pusher: env.pusher.clone(),
+        zen: env.zen.clone(),
+        files: env.files.clone(),
         log: Vec::new(),
         scheduled: false,
     }

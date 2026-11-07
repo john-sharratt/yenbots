@@ -200,6 +200,37 @@ pub const STEPS: &[&str] = &[
       PRIMARY KEY (account, app)
     );
     "#,
+    // 5 — the apps' files, and what each app asked the AI and the image
+    // engine for.
+    r#"
+    CREATE TABLE files (
+      app         TEXT NOT NULL,
+      id          TEXT NOT NULL,
+      owner       TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      kind        TEXT NOT NULL,      -- png | jpeg | webp | gif | pdf
+      bytes       INTEGER NOT NULL,
+      width       INTEGER,
+      height      INTEGER,
+      created_ms  INTEGER NOT NULL,
+      PRIMARY KEY (app, id)
+    );
+
+    CREATE TABLE ai_calls (
+      id          INTEGER PRIMARY KEY,
+      app         TEXT NOT NULL,
+      account     TEXT,               -- NULL: a workflow running as the app
+      kind        TEXT NOT NULL CHECK (kind IN ('chat', 'image', 'ask')),
+      asked       TEXT NOT NULL,      -- the last message, or the picture's prompt
+      ms          INTEGER NOT NULL,
+      tokens_in   INTEGER,
+      tokens_out  INTEGER,
+      outcome     TEXT NOT NULL CHECK (outcome IN ('ok', 'failed')),
+      error       TEXT,
+      at_ms       INTEGER NOT NULL
+    );
+    CREATE INDEX ai_calls_by_app ON ai_calls (app, at_ms);
+    "#,
 ];
 
 /// The schema this build makes.

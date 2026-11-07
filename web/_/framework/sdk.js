@@ -4,8 +4,10 @@
 // make their own, from fakes.
 
 import { signal } from "../vendor/signals-core.mjs";
+import { Ai } from "./ai.js";
 import { ApiError, Offline } from "./api.js";
 import { Collection } from "./collection.js";
+import { Files } from "./files.js";
 import { Inbox } from "./inbox.js";
 import { Notify } from "./notify.js";
 import { Queue } from "./queue.js";
@@ -29,6 +31,10 @@ export class Sdk {
     this.notify = new Notify(api, device);
     /** The account's notifications (§11.2): `items`, `unread`, `muted`, `read(id)`, `readAll()`. */
     this.inbox = new Inbox(api);
+    /** The model and the image engine (§14): `chat`, `image`, `ask`. */
+    this.ai = new Ai(api);
+    /** The app's files (§6.1): `upload(blob)`, `url(id, {thumb})`. */
+    this.files = new Files(api);
     /** `GET /me`: who is signed in, and whether approved. */
     this.me = signal(null);
     /** `GET /apps/{id}`: the app's collections and their fields. */

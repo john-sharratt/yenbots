@@ -14,10 +14,15 @@ use serde_json::{json, Value};
 use super::loader::Sources;
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
+use crate::ai::chat::Ask;
+use crate::ai::image::Draw;
+use crate::ai::zen::Zen;
+use crate::ai::Asker;
 use crate::apps::manifest::{is_name, Manifest};
 use crate::config::Config;
 use crate::data::changes::{change_of, Changes, Feed, Op};
 use crate::data::docs::{self, Change, Denied, Doc, Query, Sum};
+use crate::files::Files;
 use crate::jobs::clock::spoken;
 use crate::jobs::follow::acting;
 use crate::jobs::table::{insert, NewJob};
@@ -40,6 +45,8 @@ pub struct Host {
     pub zone: TimeZone,
     pub cfg: Config,
     pub pusher: Pusher,
+    pub zen: Arc<dyn Zen>,
+    pub files: Files,
     /// The run's log, as `ctx.log` wrote it.
     pub log: Vec<String>,
     /// Whether it made a job, so the scheduler looks again.
@@ -148,6 +155,7 @@ impl Host {
             },
             "schedule" => self.schedule(args)?,
             "notify" => self.notify(args)?,
+            "ai_chat" | "ai_image" | "ai_ask" => self.ai(op, args)?,
             "has" => ok(json!(str_arg(args, 0).is_some_and(|n| self.sources.has(n)))),
             "once_get" => {
                 let key = str_arg(args, 0).unwrap_or_default();
@@ -238,6 +246,61 @@ impl Host {
         tx.commit()?;
         self.changes.send(Feed::Changed(told));
         Ok(Ok(done))
+    }
+
+    /// `ctx.ai.chat(ask)`, `ctx.ai.image(draw)`, `ctx.ai.ask(from,
+    /// question)` (§14): as a page's call, for the run's caller, answered
+    /// whole.
+    fn ai(&mut self, op: &str, args: &[Value]) -> Result<Value> {
+        let asker = Asker {
+            zen: self.zen.as_ref(),
+            store: &self.store,
+            files: &self.files,
+            m: &self.manifest,
+            caller: &self.caller,
+        };
+        let shape =
+            |what: &str, e: serde_json::Error| refused("bad_request", format!("{what}: {e}"));
+        let arg = args.first().cloned().unwrap_or(Value::Null);
+        Ok(match op {
+            "ai_chat" => {
+                let ask: Ask = match serde_json::from_value(arg) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Ok(shape(
+                            "a chat is `{messages, system?, max_tokens?, schema?}`",
+                            e,
+                        ))
+                    }
+                };
+                match asker.chat(&ask, &mut |_| {})? {
+                    Ok(a) => json!({"ok": {"content": a.content, "json": a.json}}),
+                    Err(why) => refused("refused", why),
+                }
+            }
+            "ai_image" => {
+                let draw: Draw = match serde_json::from_value(arg) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return Ok(shape(
+                            "a picture is `{prompt, width?, height?, seed?, from?, hold?}`",
+                            e,
+                        ))
+                    }
+                };
+                match asker.image(&draw, &mut |_| {})? {
+                    Ok((file, seed)) => json!({"ok": {"file": file.shown(), "seed": seed}}),
+                    Err(why) => refused("refused", why),
+                }
+            }
+            _ => {
+                let question = str_arg(args, 1).unwrap_or_default();
+                match asker.ask(str_arg(args, 0).unwrap_or_default(), question)? {
+                    Ok(a) => json!({"ok": a}),
+                    Err(why) => refused("refused", why),
+                }
+            }
+        })
     }
 
     /// `ctx.notify(to, {title, body, open})`: to an account's id,

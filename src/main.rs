@@ -8,11 +8,13 @@
 //! ```
 
 mod accounts;
+mod ai;
 mod app;
 mod apps;
 mod check;
 mod config;
 mod data;
+mod files;
 mod gate;
 mod git;
 mod jobs;
@@ -38,10 +40,12 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
+use ai::zen::Gateway;
 use app::App;
 use apps::Apps;
 use config::Config;
 use data::changes::Changes;
+use files::Files;
 use jobs::scheduler::{self, sync_all, Jobs};
 use library::Library;
 use logs::browser::Repeats;
@@ -95,17 +99,23 @@ async fn main() -> Result<()> {
     let bus_url = cfg.bus.url.clone();
     let vapid = Vapid::load_or_make(&store.conn(), accounts::now_ms())?;
     let pusher = Pusher::start(store.clone(), vapid.clone(), Arc::new(Https::new()));
+    // The bus's service key is the site's on the gateway: the model and the
+    // image engine know it by it too.
+    let zen = Arc::new(Gateway::new(&cfg.gateway, &key));
+    let files = Files::new(cfg.files_dir());
     let app = Arc::new(App {
         cfg,
         store,
         logs,
         apps,
         library,
+        files,
         reloads: reloads.clone(),
         changes: Changes::new(),
         jobs: Jobs::new(),
         vapid,
         pusher,
+        zen,
         repeats: Repeats::new(),
         build: build.clone(),
         started_ms: accounts::now_ms(),

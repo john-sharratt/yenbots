@@ -82,6 +82,19 @@ export const ctx = Object.freeze({
   async notify(to, message) {
     return call("notify", to, message);
   },
+  /**
+   * The model and the image engine (§14), for an app with `ai: true`, as
+   * the run's account or the app — each answered whole:
+   * - `chat({messages, system, max_tokens, schema})` → `{content, json}`;
+   * - `image({prompt, width, height, seed, from, hold})` → `{file, seed}`,
+   *   the picture kept as a file of the app;
+   * - `ask(from, question)` → `{answer, ids, read}`, from collection `from`.
+   */
+  ai: Object.freeze({
+    chat: async (ask) => call("ai_chat", ask),
+    image: async (draw) => call("ai_image", draw),
+    ask: async (from, question) => call("ai_ask", from, question),
+  }),
   /** A job for later: `workflow` run with `args` at `at` (milliseconds, or a Date). */
   async schedule(at, workflow, args = {}) {
     const when = at instanceof Date ? at.getTime() : at;

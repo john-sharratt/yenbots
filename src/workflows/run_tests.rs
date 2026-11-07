@@ -6,6 +6,7 @@ use serde_json::json;
 
 use super::*;
 use crate::accounts::{Account, Status};
+use crate::ai::fake::FakeZen;
 use crate::data::changes::Feed;
 use crate::jobs::table::list;
 
@@ -24,6 +25,8 @@ fn env() -> Env {
         )
         .unwrap(),
         pusher: Pusher::channel().0,
+        zen: Arc::new(FakeZen::default()),
+        files: Files::new("files"),
     }
 }
 

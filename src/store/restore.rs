@@ -19,6 +19,9 @@ const RECORDS_FROM: u32 = 2;
 /// The first schema step that records each record's shape.
 const SHAPES_FROM: u32 = 3;
 
+/// The first schema step that keeps the apps' files.
+const FILES_FROM: u32 = 5;
+
 /// Back up the store as it is into `dir`, before a restore replaces it.
 fn keep_replaced(conn: &Connection, dir: &Path, now: i64) -> Result<PathBuf> {
     std::fs::create_dir_all(dir).with_context(|| format!("making {}", dir.display()))?;
@@ -34,6 +37,10 @@ fn keep_replaced(conn: &Connection, dir: &Path, now: i64) -> Result<PathBuf> {
 pub struct Restored {
     pub records: u64,
     pub replaced: PathBuf,
+    /// The ids of the app's files the backup knows of, whose bytes the
+    /// backups' copy brings back (`crate::files::mirror`); none for a whole
+    /// store, whose files were never taken away.
+    pub files: Vec<String>,
 }
 
 /// Replace app `app`'s records — in `collections`, or all of them — and
@@ -53,13 +60,21 @@ pub fn app(
         .with_context(|| format!("opening {}", from.display()))?;
     let done = put_back(&mut conn, app, collections);
     conn.execute_batch("DETACH DATABASE b")?;
+    let (records, files) = done?;
     Ok(Restored {
-        records: done?,
+        records,
         replaced,
+        files,
     })
 }
 
-fn put_back(conn: &mut Connection, app: &str, collections: Option<&[String]>) -> Result<u64> {
+/// Put the records back; answers how many, and the ids of the app's files
+/// the backup knows of.
+fn put_back(
+    conn: &mut Connection,
+    app: &str,
+    collections: Option<&[String]>,
+) -> Result<(u64, Vec<String>)> {
     let held = "SELECT MAX(version) FROM b.schema_version";
     let at: Option<u32> = conn
         .query_row(held, [], |r| r.get(0))
@@ -98,8 +113,20 @@ fn put_back(conn: &mut Connection, app: &str, collections: Option<&[String]>) ->
         &format!("INSERT INTO main.shares SELECT * FROM b.shares WHERE {only}"),
         params![app, named],
     )?;
+    // A file never changes: those the backup knows of come back beside any
+    // kept since, for the records that name them.
+    let mut files = Vec::new();
+    if at >= FILES_FROM {
+        tx.execute(
+            "INSERT OR IGNORE INTO main.files SELECT * FROM b.files WHERE app = ?1",
+            params![app],
+        )?;
+        let mut stmt = tx.prepare("SELECT id FROM b.files WHERE app = ?1 ORDER BY id")?;
+        let rows = stmt.query_map(params![app], |r| r.get(0))?;
+        files = rows.collect::<Result<_, _>>()?;
+    }
     tx.commit()?;
-    Ok(records as u64)
+    Ok((records as u64, files))
 }
 
 /// Replace the whole store with the backup `from`, brought up to this
@@ -118,7 +145,11 @@ pub fn whole(store: &Store, from: &Path, dir: &Path, now: i64) -> Result<Restore
     migrate(&mut conn)?;
     let records: u64 = conn.query_row("SELECT COUNT(*) FROM docs", [], |r| r.get(0))?;
     tracing::warn!(from = %from.display(), replaced = %replaced.display(), "store: restored whole");
-    Ok(Restored { records, replaced })
+    Ok(Restored {
+        records,
+        replaced,
+        files: Vec::new(),
+    })
 }
 
 #[cfg(test)]

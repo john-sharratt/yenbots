@@ -5,17 +5,9 @@ use serde_json::{json, Value};
 use super::*;
 use crate::apps::Apps;
 use crate::config::Config;
-use crate::data::changes::Changes;
 use crate::jobs::table::{get, insert, list, runs, NewJob};
-use crate::library::Library;
-use crate::logs::browser::Repeats;
-use crate::logs::{Logs, Search};
-use crate::notify::push::Pusher;
-use crate::notify::vapid::Vapid;
-use crate::publish::Reloads;
+use crate::logs::Search;
 use crate::store::Store;
-use crate::version::BuildInfo;
-use p256::SecretKey;
 
 const MANIFEST: &str =
     "id: home\nname: Home\ncollections:\n  reminders:\n    scope: private\n    fields:\n      \
@@ -47,21 +39,7 @@ fn site(dir: &Path) -> Arc<App> {
     let store = Arc::new(Store::in_memory().unwrap());
     let apps = Apps::open(&live, store.clone());
     assert!(apps.get("home").is_some(), "{:?}", apps.checked("home"));
-    Arc::new(App {
-        library: Library::new(&live, dir.join("cache")),
-        cfg,
-        logs: Logs::new(store.clone()),
-        apps,
-        reloads: Reloads::new(),
-        changes: Changes::new(),
-        jobs: Jobs::new(),
-        vapid: Vapid::from_key(SecretKey::from_slice(&[7u8; 32]).unwrap()),
-        pusher: Pusher::channel().0,
-        repeats: Repeats::new(),
-        store,
-        build: BuildInfo::this(),
-        started_ms: 0,
-    })
+    Arc::new(App::for_tests(cfg, store, apps))
 }
 
 fn job<'a>(

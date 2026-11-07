@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, data, errors, events, jobs, library, me, notify, openapi, reload};
+use super::{admin, ai, data, errors, events, files, jobs, library, me, notify, openapi, reload};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -26,6 +26,7 @@ pub enum Ty {
     Bool,
     List,
     Object,
+    Number,
 }
 
 impl Ty {
@@ -36,6 +37,7 @@ impl Ty {
             Ty::Bool => "boolean",
             Ty::List => "array",
             Ty::Object => "object",
+            Ty::Number => "number",
         }
     }
 }
@@ -117,6 +119,11 @@ const fn may(name: &'static str, ty: Ty, about: &'static str) -> Field {
 }
 
 const APP: Param = path("app", "the app's id");
+const AS_APP: Param = query(
+    "app",
+    Ty::Str,
+    "the app asking, for a token's call; a page's call names it in `X-Yen-App`",
+);
 const COLL: Param = path("coll", "the collection, as the app's manifest names it");
 const ID: Param = path("id", "the record's id");
 const WHERE: Param = query(
@@ -251,6 +258,62 @@ pub const ROUTES: &[Route] = &[
         params: &[APP],
         body: &[needs("writes", Ty::List, "each `{op: create|update|delete, coll, id?, data?, version?}`")],
         handler: || post(data::batch),
+    },
+    // AI and pictures.
+    Route {
+        method: "POST", path: "/api/v1/ai/chat", page: "ai",
+        summary: "A chat with the model: the app's own messages and system prompt; its answer whole, or streamed as it is written.",
+        params: &[AS_APP],
+        body: &[
+            needs("messages", Ty::List, "`{role: user|assistant, content}`, the person's last"),
+            may("system", Ty::Str, "how the model should answer: the app's own instructions"),
+            may("max_tokens", Ty::Int, "the longest answer, up to 4000; 1000 when absent"),
+            may("schema", Ty::Object, "a JSON Schema the answer must match: it is then answered as JSON, read whole"),
+            may("stream", Ty::Bool, "send the answer as server-sent events as it is written"),
+        ],
+        handler: || post(ai::chat),
+    },
+    Route {
+        method: "POST", path: "/api/v1/ai/image", page: "ai",
+        summary: "Draw a picture, or change one the app holds; it is kept as a file of the app.",
+        params: &[AS_APP],
+        body: &[
+            needs("prompt", Ty::Str, "what to draw"),
+            may("width", Ty::Int, "64 to 1024, a multiple of 16; 1024 when absent"),
+            may("height", Ty::Int, "64 to 1024, a multiple of 16; 1024 when absent"),
+            may("seed", Ty::Int, "the seed, to draw the same again"),
+            may("from", Ty::Str, "one of the app's pictures, by file id, to change rather than draw anew"),
+            may("hold", Ty::Number, "how closely a change keeps to `from`, 0 to 0.95; 0.5 when absent"),
+            may("stream", Ty::Bool, "send its progress as server-sent events"),
+        ],
+        handler: || post(ai::image),
+    },
+    Route {
+        method: "POST", path: "/api/v1/ai/ask", page: "ai",
+        summary: "A question about one of the app's collections, answered from the records the caller may see, with the ids it drew on.",
+        params: &[AS_APP],
+        body: &[
+            needs("question", Ty::Str, "the question, as the person asked it"),
+            needs("from", Ty::Str, "the collection to answer from; it names fields to search"),
+        ],
+        handler: || post(ai::ask),
+    },
+    // Files.
+    Route {
+        method: "POST", path: "/api/v1/files/{app}", page: "files",
+        summary: "Keep the body — a picture or a PDF — as one of the app's files; answers its id and addresses.",
+        params: &[APP, query("name", Ty::Str, "what the file is called, as the person named it")],
+        body: &[], handler: || post(files::upload),
+    },
+    Route {
+        method: "GET", path: "/api/v1/files/{app}/{id}", page: "files",
+        summary: "One of the app's files, as it was kept.",
+        params: &[APP, path("id", "the file's id")], body: &[], handler: || get(files::file),
+    },
+    Route {
+        method: "GET", path: "/api/v1/files/{app}/{id}/thumb", page: "files",
+        summary: "A picture's thumbnail: WebP, its longest side 480.",
+        params: &[APP, path("id", "the file's id")], body: &[], handler: || get(files::thumb),
     },
     // Notifications.
     Route {

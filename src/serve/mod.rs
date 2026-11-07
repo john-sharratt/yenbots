@@ -20,11 +20,13 @@
 #![allow(clippy::result_large_err)]
 
 pub mod admin;
+pub mod ai;
 pub mod app_files;
 pub mod asset;
 pub mod data;
 pub mod errors;
 pub mod events;
+pub mod files;
 pub mod install;
 pub mod jobs;
 pub mod library;
@@ -86,23 +88,22 @@ mod tests {
     use serde_json::{json, Value};
     use tower::ServiceExt;
 
+    use base64::Engine;
+
     use super::*;
+    use crate::ai::fake::FakeZen;
+    use crate::ai::NOT_AI;
     use crate::apps::manifest::Manifest;
     use crate::apps::theme::Theme;
     use crate::apps::Apps;
     use crate::config::Config;
-    use crate::data::changes::{Changes, Feed};
-    use crate::jobs::scheduler::{sync_all, Jobs};
+    use crate::data::changes::Feed;
+    use crate::jobs::scheduler::sync_all;
     use crate::library::Library;
-    use crate::logs::browser::Repeats;
-    use crate::logs::{Level, Line, Logs};
-    use crate::notify::push::Pusher;
-    use crate::notify::vapid::Vapid;
-    use crate::publish::Reloads;
+    use crate::logs::{Level, Line};
     use crate::store::backups::back_up;
     use crate::store::Store;
     use crate::version::BuildInfo;
-    use p256::SecretKey;
 
     const HOME: &str =
         "id: home\nname: Home\nstatus: live\ncollections:\n  notes:\n    scope: private\n    \
@@ -113,27 +114,15 @@ mod tests {
     }
 
     fn serving_with(apps: Apps, library: Library) -> Arc<App> {
-        let store = Arc::new(Store::in_memory().unwrap());
-        Arc::new(App {
-            cfg: Config::from_yaml(
-                "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\ntime_zone: Australia/Sydney\n\
-                 bus: {url: u, key_file: k}\n",
-                Path::new("."),
-            )
-            .unwrap(),
-            logs: Logs::new(store.clone()),
-            apps,
-            library,
-            reloads: Reloads::new(),
-            changes: Changes::new(),
-            jobs: Jobs::new(),
-            vapid: Vapid::from_key(SecretKey::from_slice(&[7u8; 32]).unwrap()),
-            pusher: Pusher::channel().0,
-            repeats: Repeats::new(),
-            store,
-            build: BuildInfo::this(),
-            started_ms: 1,
-        })
+        let cfg = Config::from_yaml(
+            "data_dir: d\nlive_dir: l\nadmins: [yen@example.com]\ntime_zone: Australia/Sydney\n\
+             bus: {url: u, key_file: k}\n",
+            Path::new("."),
+        )
+        .unwrap();
+        let mut app = App::for_tests(cfg, Arc::new(Store::in_memory().unwrap()), apps);
+        app.library = library;
+        Arc::new(app)
     }
 
     pub(super) fn app() -> Arc<App> {
@@ -214,7 +203,7 @@ mod tests {
         let (status, body) = get_as(&app(), "/v1/status", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
-        assert_eq!(body["store"]["schema"], 4);
+        assert_eq!(body["store"]["schema"], 5);
     }
 
     async fn call(
@@ -639,6 +628,139 @@ mod tests {
         assert_eq!(released["job"]["state"], "waiting");
         let (_, now) = call(&app, "POST", &act("run"), yen, None, true).await;
         assert!(now["job"]["next_ms"].as_i64().unwrap() > 1_000, "due now");
+    }
+
+    /// A site in `dir` serving `HOME` with `ai: true`, its Zen `zen`.
+    fn with_ai(dir: &Path, zen: FakeZen) -> Arc<App> {
+        let cfg = Config::from_yaml(
+            "data_dir: data\nlive_dir: live\nadmins: [yen@example.com]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
+            dir,
+        )
+        .unwrap();
+        let m = Manifest::parse(&format!("{HOME}ai: true\n"), "home").unwrap();
+        let mut app = App::for_tests(
+            cfg,
+            Arc::new(Store::in_memory().unwrap()),
+            Apps::of(vec![m]),
+        );
+        app.zen = Arc::new(zen);
+        Arc::new(app)
+    }
+
+    /// **A page chats with the model and draws a picture, kept as one of
+    /// its app's files; an app without `ai: true` is refused.**
+    #[tokio::test]
+    async fn an_app_chats_and_draws() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut png = Cursor::new(Vec::new());
+        RgbaImage::from_pixel(64, 32, Rgba([212, 87, 61, 255]))
+            .write_to(&mut png, ImageFormat::Png)
+            .unwrap();
+        let png = png.into_inner();
+        let zen = FakeZen::chats(vec![vec![format!(
+            "data: {}",
+            json!({"choices": [{"delta": {"content": "Phở."}}]})
+        )]]);
+        let app = with_ai(dir.path(), zen);
+        let yen = ("1", "yen@example.com");
+        let asked = json!({"messages": [{"role": "user", "content": "Dinner?"}]});
+        let (status, said) = call(
+            &app,
+            "POST",
+            "/api/v1/ai/chat",
+            yen,
+            Some(asked.clone()),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{said}");
+        assert_eq!(said["content"], "Phở.");
+        let kept: i64 = app
+            .store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM ai_calls WHERE kind = 'chat' AND account = '1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 1);
+
+        let drawing = FakeZen::images(vec![vec![format!(
+            "{{\"event\":\"done\",\"width\":64,\"height\":32,\"png_base64\":\"{}\",\"seed\":9}}",
+            base64::engine::general_purpose::STANDARD.encode(&png)
+        )]]);
+        let app = with_ai(dir.path(), drawing);
+        let draw = json!({"prompt": "A bowl", "width": 128, "height": 64});
+        let (status, drawn) = call(&app, "POST", "/api/v1/ai/image", yen, Some(draw), true).await;
+        assert_eq!(status, StatusCode::OK, "{drawn}");
+        assert_eq!(drawn["seed"], 9);
+        let thumb = drawn["file"]["thumb"].as_str().unwrap().to_string();
+        let res = router(app.clone())
+            .oneshot(signed_in(&thumb, yen))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers()["content-type"], "image/webp");
+
+        let plain = serving(Apps::of(vec![Manifest::parse(HOME, "home").unwrap()]));
+        let (status, no) = call(&plain, "POST", "/api/v1/ai/chat", yen, Some(asked), true).await;
+        assert_eq!(
+            (status, no["detail"].as_str()),
+            (StatusCode::UNPROCESSABLE_ENTITY, Some(NOT_AI))
+        );
+    }
+
+    /// **A file is kept for an app and served to those who may open it;
+    /// one that is no picture or PDF is refused.**
+    #[tokio::test]
+    async fn an_apps_files_are_kept_and_served() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = with_ai(dir.path(), FakeZen::default());
+        let yen = ("1", "yen@example.com");
+        get_as(&app, "/api/v1/me", Some(yen)).await;
+        let post = |bytes: &'static [u8]| {
+            Request::post("/api/v1/files/home?name=menu.pdf")
+                .header("x-tokera-user", "1")
+                .header("x-tokera-provider", "google")
+                .header("x-tokera-email", "yen@example.com")
+                .header("x-tokera-name", "N")
+                .header("x-yen-app", "home")
+                .body(Body::from(bytes))
+                .unwrap()
+        };
+        let (status, kept) = answer(
+            router(app.clone())
+                .oneshot(post(b"%PDF-1.7 menu"))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "{kept}");
+        assert_eq!(
+            (kept["name"].as_str(), kept["thumb"].clone()),
+            (Some("menu.pdf"), Value::Null)
+        );
+        let url = kept["url"].as_str().unwrap().to_string();
+        let res = router(app.clone())
+            .oneshot(signed_in(&url, yen))
+            .await
+            .unwrap();
+        assert_eq!(res.headers()["content-type"], "application/pdf");
+        let bytes = to_bytes(res.into_body(), 1 << 20).await.unwrap();
+        assert_eq!(&bytes[..], b"%PDF-1.7 menu");
+        let (status, refused) =
+            answer(router(app.clone()).oneshot(post(b"<svg/>")).await.unwrap()).await;
+        assert_eq!(
+            (status, refused["error"].as_str()),
+            (StatusCode::UNPROCESSABLE_ENTITY, Some("bad_file"))
+        );
+        get_as(&app, "/api/v1/me", Some(("2", "c@example.com"))).await;
+        let res = router(app.clone())
+            .oneshot(signed_in(&url, ("2", "c@example.com")))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::FORBIDDEN, "not approved");
     }
 
     /// **A whole store restored brings its jobs back due**: the backup was

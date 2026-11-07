@@ -293,6 +293,9 @@ is "Due", `shopping-list` is "Shopping list".
   `app.notify.state` (`install`, `unsupported`, `off`, `blocked`, `on`),
   `await app.notify.enable()`, `app.inbox.unread`, `app.inbox.items`.
   Notifications are sent by a workflow, `ctx.notify` (`workflows.md`).
+- **The AI and files**: `app.ai.chat`, `app.ai.image`, `app.ai.ask` for an
+  app with `ai: true`, and `app.files.upload(blob)` / `app.files.url(id)`
+  (`ai.md`).
 - **A workflow run now**: `await app.workflows.run(name, args)` runs one of
   the app's workflows as the account — a "send it now" button — and answers
   what it returned; a run that fails throws, `code` `workflow_failed`
