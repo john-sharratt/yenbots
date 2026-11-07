@@ -126,6 +126,35 @@ fn records_are_taken_up_each_step() {
     assert_eq!(kept, (3, 2, 2, "done".to_string()));
 }
 
+/// **A record written while its batch was being migrated keeps that
+/// write**: it is read again and taken up from what it then holds.
+#[test]
+fn a_write_during_a_migration_is_kept() {
+    let env = env();
+    let m = Arc::new(Manifest::parse(APP, "home").unwrap());
+    put(&env, "r1", json!({"title": "Phở"}), 2);
+    // The first time it is handed the record, the migration writes to it —
+    // as a person would, mid-batch — before answering.
+    let busy = "export default async function m(ctx, { record }) {\n\
+                  if (!record.title.endsWith('*')) {\n\
+                    await ctx.data.collection('recipes').update(record.id, { title: record.title + '*' });\n\
+                  }\n\
+                  return { title: record.title, serves: 2 };\n\
+                }";
+    migrate(
+        &env,
+        &m,
+        &sources(&[("migrate-recipes-3", busy)]),
+        "recipes",
+        50,
+    )
+    .unwrap();
+    // The write was held to the new fields, so the record is at the new
+    // shape as it was written, and the migration's answer is not laid over it.
+    assert_eq!(rows(&env)[0].1, json!({"title": "Phở*"}));
+    assert_eq!(rows(&env)[0].2, 3);
+}
+
 /// **A migration that returns a record its fields refuse stops, saying
 /// which and why, and leaves that batch as it was**; one that is not there
 /// is said so.

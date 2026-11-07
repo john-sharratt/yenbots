@@ -67,6 +67,7 @@ test("turning notifications on asks, subscribes with the site's key, and tells t
   const f = fakeFetch([
     [200, { key: "AAEC_w" }],
     [200, { subscribed: true }],
+    [200, { subscribed: true }],
     [200, { unsubscribed: true }],
   ]);
   const d = device();
@@ -83,8 +84,9 @@ test("turning notifications on asks, subscribes with the site's key, and tells t
     ],
   );
   eq(await n.check(), "on");
+  eq([f.calls[2].method, f.calls[2].url], ["POST", "/api/v1/push/subscribe"], "told again, for whoever is signed in");
   eq(await n.disable(), "off");
-  eq(f.calls[2].body, { endpoint: "https://push.example/1" });
+  eq(f.calls[3].body, { endpoint: "https://push.example/1" });
 });
 
 test("a person who says no, or an iPhone not yet on the home screen, is not subscribed", async () => {

@@ -286,11 +286,13 @@ fn a_workflow_notifies() {
 #[test]
 fn a_workflow_reaches_nothing_but_ctx() {
     let env = env();
-    let peek = "export default async function peek(ctx) { return [typeof globalThis.__yen, typeof globalThis.__yen_run]; }";
+    // Not even as it loads, before its function runs.
+    let peek = "const early = typeof globalThis.__yen;\n\
+                export default async function peek(ctx) { return [early, typeof globalThis.__yen, typeof globalThis.__yen_run]; }";
     let answer = go(&env, &[("peek", peek)], "peek", json!({}), yen())
         .answer
         .unwrap();
-    assert_eq!(answer, json!(["undefined", "undefined"]));
+    assert_eq!(answer, json!(["undefined", "undefined", "undefined"]));
     let reach =
         "export default async function reach(ctx) { return (await import('yen:ctx')).ctx.app; }";
     let failed = go(&env, &[("reach", reach)], "reach", json!({}), yen())

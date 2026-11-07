@@ -19,7 +19,7 @@ use crate::app::App;
 use crate::notify::deliver::{deliver, Origin, ADMINS};
 use crate::notify::devices::{self, Subscription};
 use crate::notify::inbox::{self, Message};
-use crate::notify::vapid::origin_of;
+use crate::notify::vapid::is_push_service;
 
 /// The most notifications one call answers.
 const MAX_ITEMS: usize = 100;
@@ -70,11 +70,11 @@ pub async fn subscribe(
         Ok(v) => v,
         Err(r) => return r,
     };
-    if origin_of(&sub.endpoint).is_none() {
+    if !is_push_service(&sub.endpoint) {
         return error(
             StatusCode::BAD_REQUEST,
             "bad_endpoint",
-            "a push endpoint is an https address",
+            "a push endpoint is a browser's push service: Google's, Mozilla's, Apple's or Microsoft's",
         );
     }
     as_caller(s, method, headers, move |s, c| {

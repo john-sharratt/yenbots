@@ -65,8 +65,14 @@ fn named(from: &Origin<'_>, to: &str) -> Result<Vec<String>> {
     Ok(vec![to.to_string()])
 }
 
+/// The most of a body a push carries, in characters: a push holds at most
+/// three thousand bytes (`encrypt::MAX_PLAINTEXT`), and a phone shows a few
+/// lines; the inbox keeps the whole.
+const PUSHED_BODY: usize = 400;
+
 /// The JSON the service worker shows.
 fn payload(m: &Message, app: &Manifest, inbox_id: &str) -> Vec<u8> {
+    let body: String = m.body.chars().take(PUSHED_BODY).collect();
     let icon = app
         .tile
         .as_deref()
@@ -74,7 +80,7 @@ fn payload(m: &Message, app: &Manifest, inbox_id: &str) -> Vec<u8> {
         .map(|key| format!("/_library/{key}-256.webp"));
     json!({
         "title": m.title,
-        "body": m.body,
+        "body": body,
         "open": m.open.clone().unwrap_or_else(|| format!("/a/{}/", app.id)),
         "app": app.id,
         "id": inbox_id,
@@ -135,6 +141,7 @@ mod tests {
 
     use super::*;
     use crate::notify::devices::{mute, subscribe, Keys, Subscription};
+    use crate::notify::encrypt::MAX_PLAINTEXT;
     use crate::notify::inbox::list;
 
     fn cfg() -> Config {
@@ -286,6 +293,15 @@ mod tests {
             Err("`2` names no active account that may open chores".to_string()),
             "a draft opens for the admins alone"
         );
+        // The longest a message may be still fits a push.
+        let longest = Message {
+            title: "é".repeat(200),
+            body: "é".repeat(2_000),
+            open: Some(format!("/a/chores/{}", "x".repeat(200))),
+        }
+        .checked()
+        .unwrap();
+        assert!(payload(&longest, &app, "19a60e1a2b0000001c4").len() < MAX_PLAINTEXT);
         let blank = Message {
             title: " ".into(),
             ..msg()

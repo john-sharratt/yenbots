@@ -34,7 +34,9 @@ self.addEventListener("push", (e) => {
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const open = new URL(e.notification.data?.open || "/", self.location.origin).href;
+  // Only ever a page of the site, whatever the push said.
+  const asked = new URL(e.notification.data?.open || "/", self.location.origin);
+  const open = asked.origin === self.location.origin ? asked.href : new URL("/", self.location.origin).href;
   const id = e.notification.data?.id;
   const read = id
     ? fetch(`/api/v1/inbox/${encodeURIComponent(id)}/read`, {

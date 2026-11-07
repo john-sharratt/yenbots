@@ -243,6 +243,27 @@ mod tests {
             "r1's passed, and is kept"
         );
 
+        // Run early by an admin, a job is not put back by a reload before it runs.
+        put(&store, "r3", now + 20_000_000);
+        sync(&mut store.conn(), &from, &sydney(), now).unwrap();
+        store
+            .conn()
+            .execute(
+                "UPDATE jobs SET next_ms = ?1 WHERE source = 'record:0:reminders/r3'",
+                [now + 5_000_000],
+            )
+            .unwrap();
+        sync(&mut store.conn(), &from, &sydney(), now + 6_000_000).unwrap();
+        let r3 = jobs(&store)
+            .into_iter()
+            .find(|j| j.source == "record:0:reminders/r3")
+            .unwrap();
+        assert_eq!(r3.next_ms, Some(now + 5_000_000));
+        store
+            .conn()
+            .execute("DELETE FROM docs WHERE id = 'r3'", [])
+            .unwrap();
+
         sync(&mut store.conn(), &manifest("  []\n"), &sydney(), now).unwrap();
         assert!(jobs(&store).is_empty(), "the schedule is gone");
     }

@@ -38,7 +38,7 @@ own.
 
 | Status | Code | When |
 |---|---|---|
-| 400 | `bad_endpoint` | the endpoint is not an https address |
+| 400 | `bad_endpoint` | the endpoint is not at a browser's push service — Google's, Mozilla's, Apple's or Microsoft's |
 | 400 | `bad_request` | the body is not a subscription |
 
 ```http

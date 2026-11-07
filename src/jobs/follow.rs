@@ -63,6 +63,12 @@ pub fn keep_record_job(
     };
     match held.first() {
         Some(j) if j.next_ms == Some(due) && &j.workflow == run && j.state != State::Done => {}
+        // Due now — an admin ran it early — and about to run: it waits for
+        // the record's time again once it has (`runner::record_next`).
+        Some(j)
+            if j.state == State::Waiting
+                && &j.workflow == run
+                && j.next_ms.is_some_and(|n| n <= now) => {}
         Some(j) => {
             conn.execute(
                 "UPDATE jobs SET next_ms = ?2, workflow = ?3, attempts = 0, run_as = ?4, \

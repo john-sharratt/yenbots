@@ -281,8 +281,10 @@ pub fn requeue_running(conn: &Connection, now: i64) -> Result<usize> {
 }
 
 /// Drop jobs that ran once and are done, and their runs, older than
-/// `before`.
+/// `before`, and what `ctx.once` kept from before then — a run repeated
+/// after a crash comes within minutes, not a week.
 pub fn tidy(conn: &Connection, before: i64) -> Result<usize> {
+    conn.execute("DELETE FROM job_once WHERE at_ms < ?1", params![before])?;
     let gone = "SELECT id FROM jobs WHERE state = 'done' AND rule IS NULL AND updated_ms < ?1";
     conn.execute(
         &format!("DELETE FROM job_runs WHERE job IN ({gone})"),
@@ -325,13 +327,20 @@ pub fn record(conn: &Connection, run: &Run) -> Result<()> {
             serde_json::to_string(&run.log).expect("strings serialize"),
         ],
     )?;
-    if let Some(job) = &run.job {
-        conn.execute(
+    match &run.job {
+        Some(job) => conn.execute(
             "DELETE FROM job_runs WHERE job = ?1 AND id NOT IN \
              (SELECT id FROM job_runs WHERE job = ?1 ORDER BY started_ms DESC, id DESC LIMIT ?2)",
             params![job, RUNS_KEPT],
-        )?;
-    }
+        )?,
+        // A run asked for at once is kept with the others of its workflow.
+        None => conn.execute(
+            "DELETE FROM job_runs WHERE job IS NULL AND app = ?1 AND workflow = ?2 AND id NOT IN \
+             (SELECT id FROM job_runs WHERE job IS NULL AND app = ?1 AND workflow = ?2 \
+              ORDER BY started_ms DESC, id DESC LIMIT ?3)",
+            params![run.app, run.workflow, RUNS_KEPT],
+        )?,
+    };
     Ok(())
 }
 
@@ -528,6 +537,25 @@ mod tests {
         }
         let kept = runs(&conn, "j", 100).unwrap();
         assert_eq!(kept.len(), 20);
+        for i in 0..25 {
+            let at_once = Run {
+                job: None,
+                app: "home".into(),
+                workflow: "summary".into(),
+                started_ms: i,
+                ended_ms: i,
+                ok: true,
+                error: None,
+                log: Vec::new(),
+            };
+            record(&conn, &at_once).unwrap();
+        }
+        let held: i64 = conn
+            .query_row("SELECT COUNT(*) FROM job_runs WHERE job IS NULL", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(held, 20, "runs asked for at once are kept the same");
         assert_eq!(kept[0].started_ms, 24);
         assert_eq!(kept[0].log, ["line 24"]);
         assert_eq!(kept[1].error.as_deref(), Some("boom"));
@@ -556,7 +584,19 @@ mod tests {
         );
         conn.execute("UPDATE jobs SET state = 'done' WHERE id = ?1", [&daily])
             .unwrap();
+        conn.execute_batch(
+            "INSERT INTO job_once (app, key, value, at_ms) VALUES ('home', 'old', 'null', 5), ('home', 'new', 'null', 50);",
+        )
+        .unwrap();
         assert_eq!(tidy(&conn, 11).unwrap(), 1);
+        let once: Vec<String> = conn
+            .prepare("SELECT key FROM job_once")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(once, ["new"]);
         assert!(get(&conn, &old).unwrap().is_none());
         assert!(
             get(&conn, &daily).unwrap().is_some(),

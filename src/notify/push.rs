@@ -4,7 +4,7 @@
 //! A device its push service says is gone (404, 410) is forgotten.
 
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -16,12 +16,18 @@ use ureq::{Agent, AgentBuilder, Error as Refused};
 
 use super::devices::{gone, sent, Subscription};
 use super::encrypt::{encrypt, Seal};
-use super::vapid::{origin_of, Vapid};
+use super::vapid::{is_push_service, origin_of, Vapid};
 use crate::accounts::now_ms;
 use crate::store::Store;
 
 /// How long a push service keeps a message for a device that is off.
 pub const TTL_SECS: u32 = 24 * 3600;
+
+/// How many pushes are in flight at once.
+pub const SENDERS: usize = 4;
+
+/// How long a push service has to answer.
+const ANSWER: Duration = Duration::from_secs(10);
 
 /// One message for one device.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +57,7 @@ pub struct Https {
 impl Https {
     pub fn new() -> Https {
         Https {
-            agent: AgentBuilder::new().timeout(Duration::from_secs(15)).build(),
+            agent: AgentBuilder::new().timeout(ANSWER).build(),
         }
     }
 }
@@ -89,19 +95,32 @@ impl Pusher {
         (Pusher { tx }, rx)
     }
 
-    /// A pusher whose sender thread is started, posting with `transport`.
+    /// A pusher whose sender threads are started, posting with `transport`.
+    /// There are [`SENDERS`] of them, so a push service slow to answer holds
+    /// up only its own.
     pub fn start(store: Arc<Store>, vapid: Vapid, transport: Arc<dyn Transport>) -> Pusher {
         let (pusher, rx) = Pusher::channel();
-        thread::Builder::new()
-            .name("yenbot-push".into())
-            .spawn(move || {
-                for push in rx {
+        let queue = Arc::new(Mutex::new(rx));
+        for n in 0..SENDERS {
+            let (queue, store, vapid, transport) = (
+                queue.clone(),
+                store.clone(),
+                vapid.clone(),
+                transport.clone(),
+            );
+            thread::Builder::new()
+                .name(format!("yenbot-push-{n}"))
+                .spawn(move || loop {
+                    let next = queue.lock().unwrap_or_else(|e| e.into_inner()).recv();
+                    let Ok(push) = next else {
+                        return;
+                    };
                     if let Err(e) = send(&store, &vapid, transport.as_ref(), &push, now_ms()) {
                         tracing::warn!(target: "yenbot::notify", "a push was not sent: {e:#}");
                     }
-                }
-            })
-            .expect("the push thread starts");
+                })
+                .expect("a push thread starts");
+        }
         pusher
     }
 
@@ -133,6 +152,9 @@ pub fn post_of<'a>(
     now: i64,
 ) -> Result<Post<'a>> {
     let endpoint = push.to.endpoint.as_str();
+    if !is_push_service(endpoint) {
+        return Err(anyhow!("`{endpoint}` is not a push service's"));
+    }
     let origin =
         origin_of(endpoint).ok_or_else(|| anyhow!("`{endpoint}` is not an https endpoint"))?;
     let device_key = URL_SAFE_NO_PAD

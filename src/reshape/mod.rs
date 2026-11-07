@@ -20,7 +20,9 @@ use serde::Serialize;
 
 use crate::accounts::now_ms;
 use crate::app::App;
+use crate::data::changes::Feed;
 use crate::jobs::runner::env_of;
+use crate::jobs::sync::sync;
 use crate::logs::browser::source;
 use crate::logs::{Level, Line};
 use crate::workflows::sources;
@@ -84,7 +86,9 @@ pub fn work(app: &App, failed: &Mutex<BTreeSet<(String, String)>>) -> bool {
             continue;
         }
         let done = sources::in_tree(app.apps.root(), &m.id).and_then(|src| {
-            for coll in behind(&env.store.conn(), &m)? {
+            // Read whole before migrating: a migration takes the store itself.
+            let colls = behind(&env.store.conn(), &m)?;
+            for coll in colls {
                 let n = migrate(&env, &m, &src, &coll, now)?;
                 tracing::info!(target: "yenbot::reshape", app = %m.id, coll = %coll, records = n, "migrated");
             }
@@ -114,17 +118,34 @@ pub fn work(app: &App, failed: &Mutex<BTreeSet<(String, String)>>) -> bool {
             continue;
         }
         let late = sources::of(&app.apps, &m.id).and_then(|src| {
-            for coll in behind(&env.store.conn(), &m)? {
+            let colls = behind(&env.store.conn(), &m)?;
+            let any = !colls.is_empty();
+            for coll in colls {
                 migrate(&env, &m, &src, &coll, now)?;
             }
-            Ok(())
+            Ok(any)
         });
-        if let Err(e) = late {
-            tracing::error!(target: "yenbot::reshape", app = %m.id, "a record written at an older shape could not be migrated: {e:#}");
+        match late {
+            Ok(false) => {}
+            // What was taken up keeps its jobs in step — a moved time moves
+            // its reminder — and the app's open pages read it again.
+            Ok(true) => {
+                if let Err(e) = sync(&mut app.store.conn(), &m, &app.cfg.zone(), now) {
+                    tracing::error!(target: "yenbot::reshape", app = %m.id, "its jobs could not be brought into step: {e:#}");
+                }
+                app.changes.send(Feed::Reset(Some(m.id.clone())));
+            }
+            Err(e) => {
+                tracing::error!(target: "yenbot::reshape", app = %m.id, "a record written at an older shape could not be migrated: {e:#}");
+            }
         }
     }
     ready
 }
+
+#[cfg(test)]
+#[path = "work_tests.rs"]
+mod tests;
 
 /// Start the worker: it migrates whenever an app waits for it, and looks
 /// for records left behind every minute. An app made ready is served as it

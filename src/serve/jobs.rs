@@ -19,7 +19,8 @@ use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
 use crate::app::App;
 use crate::apps::manifest::Manifest;
-use crate::jobs::runner::run_now;
+use crate::apps::schedule::Kind;
+use crate::jobs::runner::{run_now, Now};
 use crate::jobs::table::{self, Act, Job, State as JobState};
 use crate::workflows::run::Outcome;
 use crate::workflows::sources;
@@ -121,8 +122,8 @@ fn args_of(raw: &[u8]) -> Result<Value, Response> {
 
 /// Run workflow `name` of `m` at once as `caller`, answering how it went.
 fn run_at_once(s: &App, m: Arc<Manifest>, name: &str, args: Value, caller: Caller) -> Response {
-    match sources::of(&s.apps, &m.id) {
-        Ok(src) if src.has(name) => {}
+    let sources = match sources::of(&s.apps, &m.id) {
+        Ok(src) if src.has(name) => src,
         Ok(_) => {
             return error(
                 StatusCode::NOT_FOUND,
@@ -131,8 +132,13 @@ fn run_at_once(s: &App, m: Arc<Manifest>, name: &str, args: Value, caller: Calle
             )
         }
         Err(e) => return internal(e),
-    }
-    match run_now(s, m, name, args, caller) {
+    };
+    let now = Now {
+        m,
+        sources,
+        workflow: name,
+    };
+    match run_now(s, now, args, caller) {
         Ok(outcome) => answered(outcome),
         Err(e) => internal(e),
     }
@@ -155,11 +161,32 @@ pub async fn run(
         Err(r) => return r,
     };
     tokio::task::spawn_blocking(move || match opened(&s, &app, &caller) {
+        Ok(m) if handed_records(&m, &name) => error(
+            StatusCode::FORBIDDEN,
+            "not_yours_to_run",
+            format!(
+                "`{name}` is run by the platform with a record — a schedule's or a migration's — not by a person"
+            ),
+        ),
         Ok(m) => run_at_once(&s, m, &name, args, caller),
         Err(r) => r,
     })
     .await
     .unwrap_or_else(internal)
+}
+
+/// Whether workflow `name` of `m` is one the platform hands a record — a
+/// `from:` or `when:` schedule's, or a migration — which a person running
+/// it could hand a record of their own making.
+fn handed_records(m: &Manifest, name: &str) -> bool {
+    name.starts_with("migrate-")
+        || m.schedules.iter().any(|s| {
+            s.run == name
+                && matches!(
+                    s.kind(&m.collections),
+                    Ok(Kind::From { .. } | Kind::When(_))
+                )
+        })
 }
 
 /// `POST /api/v1/admin/workflows/{app}/{name}`: run a workflow now, as the

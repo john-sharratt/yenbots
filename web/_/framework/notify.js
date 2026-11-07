@@ -70,11 +70,16 @@ export class Notify {
     return reg.pushManager.getSubscription();
   }
 
-  /** Learn this device's state. */
+  /**
+   * Learn this device's state. A device that is subscribed is told to the
+   * site again for whoever is signed in now — on a shared tablet, the
+   * person using it — so its pushes are theirs.
+   */
   async check() {
     const d = this.device;
-    const subscribed = d.push && d.permission() === "granted" ? Boolean(await this.subscription()) : false;
-    this.state.value = stateOf({ apple: d.apple, standalone: d.standalone, push: d.push, permission: d.permission(), subscribed });
+    const sub = d.push && d.permission() === "granted" ? await this.subscription() : null;
+    if (sub) await this.api.call("POST", "/push/subscribe", sub.toJSON());
+    this.state.value = stateOf({ apple: d.apple, standalone: d.standalone, push: d.push, permission: d.permission(), subscribed: Boolean(sub) });
     return this.state.value;
   }
 

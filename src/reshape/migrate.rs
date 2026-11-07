@@ -32,10 +32,11 @@ pub fn migration_of(coll: &str, n: u32) -> String {
     format!("migrate-{coll}-{n}")
 }
 
-/// The driver that hands each record to migration `path` in turn.
+/// The driver that hands each record to migration `path` in turn, `yen:ctx`
+/// imported first, as a run's is.
 fn driver_of(path: &str) -> String {
     format!(
-        "import migrate from {};\nimport {{ ctx }} from \"yen:ctx\";\n\
+        "import {{ ctx }} from \"yen:ctx\";\nimport migrate from {};\n\
          globalThis.__yen_done = (async () => {{\n  \
            const out = [];\n  \
            for (const record of JSON.parse(globalThis.__yen_args)) out.push(await migrate(ctx, {{ record }}));\n  \
@@ -209,21 +210,33 @@ pub fn migrate(
             } else {
                 fields
             };
-            tx.execute(
+            // Only the record as it was read: one written meanwhile is
+            // left, to be read again and taken up from what it now holds.
+            let taken = tx.execute(
                 "UPDATE docs SET data = ?4, shape = ?5, version = version + 1, updated_ms = ?6 \
-                 WHERE app = ?1 AND coll = ?2 AND id = ?3",
-                params![m.id, coll, doc.id, fields.to_string(), step, now],
+                 WHERE app = ?1 AND coll = ?2 AND id = ?3 AND version = ?7 AND shape = ?8",
+                params![
+                    m.id,
+                    coll,
+                    doc.id,
+                    fields.to_string(),
+                    step,
+                    now,
+                    doc.version,
+                    at
+                ],
             )?;
+            if taken == 0 {
+                continue;
+            }
             if last {
                 unindex(&tx, &m.id, coll, &doc.id)?;
                 index(&tx, &m.id, coll, &doc.id, &body_of(&c.search, &fields))?;
+                done += 1;
             }
         }
         tx.commit()?;
         drop(conn);
-        if last {
-            done += batch.len() as u64;
-        }
         progress(
             &env.store.conn(),
             m,

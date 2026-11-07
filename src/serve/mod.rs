@@ -99,6 +99,7 @@ mod tests {
     use crate::notify::push::Pusher;
     use crate::notify::vapid::Vapid;
     use crate::publish::Reloads;
+    use crate::store::backups::back_up;
     use crate::store::Store;
     use crate::version::BuildInfo;
     use p256::SecretKey;
@@ -553,7 +554,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let home = dir.path().join("apps").join("home");
         std::fs::create_dir_all(home.join("workflows")).unwrap();
-        let schedules = "schedules:\n  - every: daily 07:30\n    run: hello\n";
+        let schedules = "schedules:\n  - every: daily 07:30\n    run: hello\n  \
+                         - when: {collection: notes, does: create}\n    run: noted\n";
+        std::fs::write(
+            home.join("workflows").join("noted.js"),
+            "export default async function noted(ctx, { after }) { return after.text; }",
+        )
+        .unwrap();
         std::fs::write(home.join("app.yaml"), format!("{HOME}{schedules}")).unwrap();
         std::fs::write(
             home.join("workflows").join("hello.js"),
@@ -581,6 +588,16 @@ mod tests {
         assert_eq!(failed["detail"], "apps/home/workflows/hello.js:3 not x");
         let (status, _) = call(&app, "POST", "/api/v1/workflows/home/nope", yen, None, true).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
+        // A workflow the platform hands a record is not a person's to run.
+        for handed in ["noted", "migrate-notes-2"] {
+            let at = format!("/api/v1/workflows/home/{handed}");
+            let (status, refused) = call(&app, "POST", &at, yen, None, true).await;
+            assert_eq!(
+                (status, refused["error"].as_str()),
+                (StatusCode::FORBIDDEN, Some("not_yours_to_run")),
+                "{handed}"
+            );
+        }
         let as_app = "/api/v1/admin/workflows/home/hello";
         let (_, ran) = call(&app, "POST", as_app, yen, Some(json!({"name": "Bo"})), true).await;
         assert_eq!(ran["value"], json!({"to": "Bo", "as": null}));
@@ -622,6 +639,47 @@ mod tests {
         assert_eq!(released["job"]["state"], "waiting");
         let (_, now) = call(&app, "POST", &act("run"), yen, None, true).await;
         assert!(now["job"]["next_ms"].as_i64().unwrap() > 1_000, "due now");
+    }
+
+    /// **A whole store restored brings its jobs back due**: the backup was
+    /// written while its own job ran, and that job runs again.
+    #[tokio::test]
+    async fn a_restored_store_has_its_jobs_due() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = Config::from_yaml(
+            "data_dir: data\nlive_dir: live\nadmins: [yen@example.com]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
+            dir.path(),
+        )
+        .unwrap();
+        let store = Arc::new(Store::in_memory().unwrap());
+        let app = Arc::new(App::for_tests(cfg, store.clone(), Apps::of(Vec::new())));
+        let yen = ("1", "yen@example.com");
+        get_as(&app, "/api/v1/me", Some(yen)).await;
+        sync_all(&app, 0).unwrap();
+        store
+            .conn()
+            .execute(
+                "UPDATE jobs SET state = 'running' WHERE workflow = 'backup'",
+                [],
+            )
+            .unwrap();
+        let backups = app.cfg.backups_dir();
+        let written = back_up(&store, &backups, 0, &app.cfg.zone())
+            .unwrap()
+            .unwrap();
+        let day = written.file_stem().unwrap().to_string_lossy()["yenbot-".len()..].to_string();
+        let at = format!("/api/v1/admin/backups/{day}/restore");
+        let (status, body) = call(&app, "POST", &at, yen, None, true).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let state: String = store
+            .conn()
+            .query_row(
+                "SELECT state FROM jobs WHERE workflow = 'backup'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(state, "waiting");
     }
 
     /// **An app's theme is served as its stylesheet**, an app with none as an

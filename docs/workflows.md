@@ -139,7 +139,10 @@ planned 7 dinners
   stop and start it.
 - `POST /api/v1/workflows/<app>/<name>` runs a workflow now as the caller —
   a "send it now" button, `app.workflows.run(name, args)` from a page — and
-  `POST /api/v1/admin/workflows/<app>/<name>` as the app.
+  `POST /api/v1/admin/workflows/<app>/<name>` as the app. A workflow the
+  platform hands a record (a `from:` or `when:` schedule's) or a migration is
+  not a person's to run, as they could hand it a record of their own making:
+  a button runs a workflow of its own, which may `ctx.run` the shared work.
 
 ## Changing a collection's shape
 

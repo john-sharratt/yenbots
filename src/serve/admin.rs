@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use anyhow::Error;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -23,6 +24,7 @@ use crate::data::changes::Feed;
 use crate::data::docs::{self, Query as DocQuery};
 use crate::jobs::scheduler::sync_all;
 use crate::jobs::sync::sync;
+use crate::jobs::table::requeue_running;
 use crate::reshape;
 use crate::store::{backups, restore};
 
@@ -433,6 +435,15 @@ struct Restore {
     collections: Option<Vec<String>>,
 }
 
+/// After a whole store came back: its running jobs due again, then every
+/// app's jobs brought into step — the store taken for one, then the other.
+fn requeued(s: &App, now: i64) -> Result<(), Error> {
+    let conn = s.store.conn();
+    requeue_running(&conn, now)?;
+    drop(conn);
+    sync_all(s, now)
+}
+
 pub async fn backups_restore(
     State(s): State<Arc<App>>,
     Path(date): Path<String>,
@@ -478,9 +489,12 @@ pub async fn backups_restore(
                 // What came back has its jobs again — a reminder's with its
                 // record — and every open page of it reads it all again.
                 let now = now_ms();
+                // A whole store comes back with the jobs that were running
+                // when it was written — the backup's own among them — which
+                // are due again, as after a restart.
                 let resynced = match asked.app.as_deref().and_then(|a| s.apps.get(a)) {
                     Some(m) => sync(&mut s.store.conn(), &m, &s.cfg.zone(), now),
-                    None => sync_all(s, now),
+                    None => requeued(s, now),
                 };
                 if let Err(e) = resynced {
                     tracing::error!(target: "yenbot::jobs", "after the restore, its jobs could not be brought into step: {e:#}");

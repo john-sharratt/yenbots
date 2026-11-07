@@ -34,3 +34,30 @@ pub struct App {
     pub build: BuildInfo,
     pub started_ms: i64,
 }
+
+#[cfg(test)]
+impl App {
+    /// A site for tests: `cfg`, `store` and `apps`, a library under the
+    /// config's data folder, and a push key of fixed bytes whose pushes go
+    /// nowhere.
+    pub fn for_tests(cfg: Config, store: Arc<Store>, apps: Apps) -> App {
+        use p256::SecretKey;
+        App {
+            library: Library::new(&cfg.live_dir, cfg.library_cache_dir()),
+            cfg,
+            logs: Logs::new(store.clone()),
+            apps,
+            reloads: Reloads::new(),
+            changes: Changes::new(),
+            jobs: Jobs::new(),
+            vapid: Vapid::from_key(
+                SecretKey::from_slice(&[7u8; 32]).expect("a key of fixed bytes"),
+            ),
+            pusher: Pusher::channel().0,
+            repeats: Repeats::new(),
+            store,
+            build: BuildInfo::this(),
+            started_ms: 0,
+        }
+    }
+}

@@ -182,6 +182,19 @@ export function defineBell(sdk, { app, installable }) {
       ></yen-toggle>`;
     }
 
+    /** A notification tapped: marked read, then its page opened — not the other way, which would cut the marking off. */
+    opened(e, item) {
+      if (!item.open) {
+        sdk.inbox.read(item.id).catch(() => {});
+        return;
+      }
+      e.preventDefault();
+      sdk.inbox
+        .read(item.id)
+        .catch(() => {})
+        .finally(() => location.assign(item.open));
+    }
+
     items() {
       const items = sdk.inbox.items.value;
       if (!items.length) return html`<p class="empty">Nothing yet. Notifications from the apps arrive here.</p>`;
@@ -191,7 +204,7 @@ export function defineBell(sdk, { app, installable }) {
             href=${i.open ?? nothing}
             headline=${i.title}
             supporting=${[i.body, when(i.created_ms)].filter(Boolean).join(" · ")}
-            @click=${() => sdk.inbox.read(i.id).catch(() => {})}
+            @click=${(e) => this.opened(e, i)}
           >
             ${i.read_ms === null ? html`<span slot="start" class="unread" aria-label="Unread"></span>` : nothing}
           </yen-list-item>`,

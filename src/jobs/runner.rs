@@ -22,6 +22,7 @@ use crate::data::docs::{self, Doc};
 use crate::logs::browser::source;
 use crate::logs::{Level, Line, PLATFORM as PLATFORM_LOG};
 use crate::workflows::engine::Failure;
+use crate::workflows::loader::Sources;
 use crate::workflows::run::{run, Ask, Env, JobRef, Outcome};
 use crate::workflows::sources;
 
@@ -272,16 +273,22 @@ pub fn keep(
     Ok(())
 }
 
-/// Run workflow `workflow` of app `m` at once, as `caller`, with `args`,
-/// and keep how it went (§10.4).
-pub fn run_now(
-    app: &App,
-    m: Arc<Manifest>,
-    workflow: &str,
-    args: Value,
-    caller: Caller,
-) -> Result<Outcome> {
-    let sources = sources::of(&app.apps, &m.id)?;
+/// What a run asked for at once runs: the app, its workflow files as it is
+/// served, and the workflow's name.
+pub struct Now<'a> {
+    pub m: Arc<Manifest>,
+    pub sources: Sources,
+    pub workflow: &'a str,
+}
+
+/// Run `now` at once, as `caller`, with `args`, and keep how it went
+/// (§10.4).
+pub fn run_now(app: &App, now: Now<'_>, args: Value, caller: Caller) -> Result<Outcome> {
+    let Now {
+        m,
+        sources,
+        workflow,
+    } = now;
     let id = m.id.clone();
     let ask = Ask {
         workflow: workflow.to_string(),

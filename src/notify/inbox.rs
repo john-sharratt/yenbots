@@ -11,6 +11,7 @@ use crate::data::docs::new_id;
 /// The longest a title and a body may be, in characters.
 pub const TITLE_MAX: usize = 120;
 pub const BODY_MAX: usize = 1_000;
+pub const OPEN_MAX: usize = 500;
 
 /// The most an inbox keeps of each account's, newest.
 const KEPT: i64 = 500;
@@ -35,8 +36,17 @@ impl Message {
             return Err("a notification has a title");
         }
         if let Some(open) = &self.open {
-            if !open.starts_with('/') || open.starts_with("//") {
+            // A browser reads `\` as `/`, so `/\elsewhere` would leave the site.
+            if !open.starts_with('/')
+                || open.starts_with("//")
+                || open
+                    .chars()
+                    .any(|c| c == '\\' || c.is_control() || c.is_whitespace())
+            {
                 return Err("`open` is an address on this site, starting with `/`");
+            }
+            if open.len() > OPEN_MAX {
+                return Err("`open` is an address of at most 500 characters");
             }
         }
         Ok(Message {
@@ -182,11 +192,24 @@ mod tests {
             ..m.clone()
         };
         assert!(away.checked().is_err());
-        let other = Message {
+        for away in [
+            "//elsewhere.example/x",
+            "/\\elsewhere.example",
+            "/\telsewhere",
+            "/a b",
+        ] {
+            let other = Message {
+                title: "t".into(),
+                open: Some(away.into()),
+                ..m.clone()
+            };
+            assert!(other.checked().is_err(), "{away:?}");
+        }
+        let here = Message {
             title: "t".into(),
-            open: Some("//elsewhere.example/x".into()),
+            open: Some("/a/chores/r/19a6?tab=done#top".into()),
             ..m
         };
-        assert!(other.checked().is_err());
+        assert!(here.checked().is_ok());
     }
 }

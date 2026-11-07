@@ -55,6 +55,7 @@ log, as a job's is.
 |---|---|---|
 | 404 | `no_app` | no such app, or none the caller may open |
 | 404 | `no_workflow` | the app has no workflow of that name |
+| 403 | `not_yours_to_run` | the platform hands this workflow a record — a `from:` or `when:` schedule's, or a migration (`migrate-…`) — so a person may not run it with arguments of their own; an admin runs it as the app on [admin-jobs](admin-jobs.md) |
 | 400 | `bad_request` | the body is not an object |
 | 422 | `workflow_failed` | the workflow threw, or ran past its deadline: `detail` says what, with its file and line, and `log` what it logged first |
 

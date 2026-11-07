@@ -291,9 +291,11 @@ pub fn update(
         Err(r) => return Ok(Err(Denied::Invalid(r))),
     };
     tx.execute(
-        "UPDATE docs SET data = ?4, version = version + 1, updated_ms = ?5 \
+        // The record is now as this collection's fields say: its shape is
+        // theirs, whichever it was written at.
+        "UPDATE docs SET data = ?4, version = version + 1, updated_ms = ?5, shape = ?6 \
          WHERE app = ?1 AND coll = ?2 AND id = ?3",
-        params![app.id, coll, id, data.to_string(), now],
+        params![app.id, coll, id, data.to_string(), now, at.c.version],
     )?;
     unindex(tx, &app.id, coll, id)?;
     index(tx, &app.id, coll, id, &body_of(&at.c.search, &data))?;

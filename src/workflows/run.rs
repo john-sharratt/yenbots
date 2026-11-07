@@ -60,10 +60,12 @@ pub struct Outcome {
     pub ended_ms: i64,
 }
 
-/// The driver that calls workflow `path` and leaves its answer.
+/// The driver that calls workflow `path` and leaves its answer. `yen:ctx`
+/// is imported first, so the host function is off the global object before
+/// any of the workflow's own code runs.
 fn driver_of(path: &str) -> String {
     format!(
-        "import workflow from {};\nimport {{ ctx }} from \"yen:ctx\";\n\
+        "import {{ ctx }} from \"yen:ctx\";\nimport workflow from {};\n\
          globalThis.__yen_done = (async () => {{\n  \
            const value = await workflow(ctx, JSON.parse(globalThis.__yen_args));\n  \
            return JSON.stringify(value === undefined ? null : value);\n\

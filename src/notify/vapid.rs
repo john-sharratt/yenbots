@@ -96,6 +96,31 @@ pub fn origin_of(endpoint: &str) -> Option<String> {
     Some(format!("https://{host}"))
 }
 
+/// The push services browsers subscribe with — Chrome's and Android's,
+/// Firefox's, Safari's, Edge's — and nothing else, so the site posts only to
+/// a push service, never to an address a subscriber chose.
+const PUSH_SERVICES: &[&str] = &[
+    "fcm.googleapis.com",
+    "updates.push.services.mozilla.com",
+    ".push.apple.com",
+    ".notify.windows.com",
+];
+
+/// Whether `endpoint` is at one of the push services.
+pub fn is_push_service(endpoint: &str) -> bool {
+    let Some(origin) = origin_of(endpoint) else {
+        return false;
+    };
+    let host = &origin["https://".len()..];
+    if host.contains([':', '@']) {
+        return false;
+    }
+    PUSH_SERVICES.iter().any(|s| match s.strip_prefix('.') {
+        Some(domain) => host.len() > s.len() && host.ends_with(s) || host == domain,
+        None => host == *s,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use p256::ecdsa::signature::Verifier;
@@ -152,5 +177,28 @@ mod tests {
         );
         assert_eq!(origin_of("http://x/y"), None);
         assert_eq!(origin_of("https:///y"), None);
+    }
+
+    #[test]
+    fn only_a_push_service_is_posted_to() {
+        for ok in [
+            "https://fcm.googleapis.com/fcm/send/abc",
+            "https://updates.push.services.mozilla.com/wpush/v2/abc",
+            "https://web.push.apple.com/QGs",
+            "https://wns2-par02p.notify.windows.com/w/?token=abc",
+        ] {
+            assert!(is_push_service(ok), "{ok}");
+        }
+        for no in [
+            "https://127.0.0.1/hook",
+            "https://evil.example/fcm.googleapis.com",
+            "https://fcm.googleapis.com.evil.example/x",
+            "https://notpush.apple.com/x",
+            "https://fcm.googleapis.com:8443/x",
+            "https://user@fcm.googleapis.com/x",
+            "http://fcm.googleapis.com/x",
+        ] {
+            assert!(!is_push_service(no), "{no}");
+        }
     }
 }
