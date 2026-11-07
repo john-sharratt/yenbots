@@ -9,8 +9,8 @@ use std::sync::Arc;
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
 use super::{
-    admin, ai, data, errors, events, files, integrations, jobs, library, me, notify, openapi,
-    reload,
+    admin, ai, app_use, data, errors, events, files, integrations, jobs, library, me, notify,
+    openapi, oversight, reload, transfer,
 };
 use crate::app::App;
 
@@ -262,6 +262,42 @@ pub const ROUTES: &[Route] = &[
         body: &[needs("writes", Ty::List, "each `{op: create|update|delete, coll, id?, data?, version?}`")],
         handler: || post(data::batch),
     },
+    Route {
+        method: "GET", path: "/api/v1/export/{app}", page: "data",
+        summary: "The app's records as a file: every collection as JSON, or one as CSV for a spreadsheet — the caller's, or every account's for an admin.",
+        params: &[
+            APP,
+            query("format", Ty::Str, "`json` (every collection) or `csv` (one); `json` when absent"),
+            query("coll", Ty::Str, "the collection, for a CSV"),
+        ],
+        body: &[], handler: || get(transfer::export),
+    },
+    Route {
+        method: "POST", path: "/api/v1/import/{app}", page: "data",
+        summary: "Records in, made new as the caller and validated like any write, all or none: the JSON an export writes, or one collection's CSV.",
+        params: &[
+            APP,
+            query("format", Ty::Str, "`json` or `csv`; `json` when absent"),
+            query("coll", Ty::Str, "the collection a CSV's rows are records of"),
+        ],
+        body: &[], handler: || post(transfer::import),
+    },
+    // The caller's use of an app.
+    Route {
+        method: "POST", path: "/api/v1/opens/{app}", page: "site",
+        summary: "The caller opened the app: counted once per page load, for the admins' usage.",
+        params: &[APP], body: &[], handler: || post(app_use::open),
+    },
+    Route {
+        method: "GET", path: "/api/v1/settings/{app}", page: "site",
+        summary: "The caller's own settings object for the app; `{}` until something is chosen.",
+        params: &[APP], body: &[], handler: || get(app_use::get),
+    },
+    Route {
+        method: "PUT", path: "/api/v1/settings/{app}", page: "site",
+        summary: "Replace the caller's settings for the app: the body is the whole object, up to 16 KB.",
+        params: &[APP], body: &[], handler: || put(app_use::put),
+    },
     // AI and pictures.
     Route {
         method: "POST", path: "/api/v1/ai/chat", page: "ai",
@@ -485,6 +521,49 @@ pub const ROUTES: &[Route] = &[
             query("after", Ty::Str, "the cursor the last page answered"),
         ],
         body: &[], handler: || get(admin::data_all),
+    },
+    Route {
+        method: "POST", path: "/api/v1/admin/apps/{id}/archive", page: "admin-apps",
+        summary: "Archive an app: it is hidden from everyone and its jobs held, its records and files kept, until it is restored.",
+        params: &[path("id", "the app's id")], body: &[], handler: || post(oversight::archive_app),
+    },
+    Route {
+        method: "POST", path: "/api/v1/admin/apps/{id}/restore", page: "admin-apps",
+        summary: "Serve an archived app again, with its records, files and jobs; its folder must be in the repository.",
+        params: &[path("id", "the app's id")], body: &[], handler: || post(oversight::restore_app),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/archive", page: "admin-apps",
+        summary: "The archived apps: why, since when, until when they are kept, and what they hold.",
+        params: &[], body: &[], handler: || get(oversight::archived),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/usage", page: "admin-apps",
+        summary: "Opens, the accounts that opened, and AI calls, by app and day or by app and account.",
+        params: &[
+            query("app", Ty::Str, "only this app's"),
+            query("since", Ty::Str, "from this day, `YYYY-MM-DD` in site time; four weeks ago when absent"),
+            query("by", Ty::Str, "`day` or `account`; `day` when absent"),
+        ],
+        body: &[], handler: || get(oversight::usage),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/errors", page: "admin-apps",
+        summary: "What browsers reported going wrong, newest first.",
+        params: &[
+            query("app", Ty::Str, "only this app's; `_site` for the platform's own pages"),
+            query("limit", Ty::Int, "how many, 1 to 500; 100 when absent"),
+        ],
+        body: &[], handler: || get(oversight::errors),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/feedback", page: "admin-apps",
+        summary: "The notes sent from the apps' menus, newest first.",
+        params: &[
+            query("app", Ty::Str, "only this app's"),
+            query("limit", Ty::Int, "how many, 1 to 500; 100 when absent"),
+        ],
+        body: &[], handler: || get(oversight::notes),
     },
     // Integrations.
     Route {

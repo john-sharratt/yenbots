@@ -36,8 +36,12 @@ GET /api/v1/apps
 
 200
 {"apps": [{"id": "recipes", "name": "Recipes", "description": "What we cook",
-           "status": "live", "private": false}]}
+           "status": "live", "private": false,
+           "tile": "/_library/tiles/bowl-coral-256.webp", "accent": "#b03a5b"}]}
 ```
+
+`tile` is the app's library picture at the landing page's size, and
+`accent` its theme's accent; either is `null` when the app names none.
 
 ### `GET /api/v1/apps/{app}`
 
@@ -148,4 +152,62 @@ GET /api/v1/openapi.json
 200
 {"openapi": "3.1.0", "info": {"title": "Yen Bots", "version": "3-6d1e0a2", …},
  "paths": {"/api/v1/me": {"get": {"summary": "Who the caller is, …", …}}, …}}
+```
+
+### `POST /api/v1/opens/{app}`
+
+The caller opened the app. The framework posts it once each time an app's
+page loads; it is counted per account and day, and the admins read it as
+[usage](admin-apps.md).
+
+| Parameter | In | |
+|---|---|---|
+| `app` | path | the app's id |
+
+```http
+POST /api/v1/opens/recipes
+X-Yen-App: recipes
+
+200
+{"app": "recipes", "opened": true}
+```
+
+### `GET /api/v1/settings/{app}`
+
+The caller's own settings for the app — what they chose in it, kept with
+them on every device. `{}` until they choose something. A page reads it as
+`app.settings`.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | path | the app's id |
+
+```http
+GET /api/v1/settings/meals
+
+200
+{"app": "meals", "settings": {"units": "metric", "week_starts": "monday"}}
+```
+
+### `PUT /api/v1/settings/{app}`
+
+Replace the caller's settings for the app: the body is the whole object, up
+to 16 KB.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | path | the app's id |
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `bad_settings` | the body is not an object, or is too large |
+
+```http
+PUT /api/v1/settings/meals
+X-Yen-App: meals
+
+{"units": "cups", "week_starts": "monday"}
+
+200
+{"app": "meals", "settings": {"units": "cups", "week_starts": "monday"}}
 ```

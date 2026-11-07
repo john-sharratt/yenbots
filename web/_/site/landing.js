@@ -1,7 +1,9 @@
-// The landing page: who the visitor is, and what they can do next; the bell,
-// once they are in; and, on an iPhone or iPad not yet opened from its home
-// screen, the walk-through to put it there, shown until it is put away
-// (§11.1). It reloads itself whenever the site starts serving a new commit.
+// The landing page (§13.1): who the visitor is, and what they can do next;
+// once they are in, their apps as tiles in the order Yen set, the bell, and
+// for an admin the way to the admin page; and, on an iPhone or iPad not yet
+// opened from its home screen, the walk-through to put it there, shown until
+// it is put away (§11.1). It reloads itself whenever the site starts serving
+// a new commit.
 import { app } from "/_/yen.js";
 
 new EventSource("/api/v1/events/_reload").addEventListener("reload", () => location.reload());
@@ -26,9 +28,61 @@ if (!me.signed_in) {
 } else if (me.account.status === "blocked") {
   who.textContent = "This account can't use Yen Bot.";
 } else {
-  who.textContent = `Welcome, ${me.account.name}. Apps arrive here soon.`;
-  document.getElementById("bar").append(document.createElement("yen-bell"));
+  const bar = document.getElementById("bar");
+  if (me.account.admin) {
+    const admin = document.createElement("a");
+    admin.className = "admin-link";
+    admin.href = "/_admin";
+    admin.textContent = "Admin";
+    bar.append(admin);
+  }
+  bar.append(document.createElement("yen-bell"));
+  await tiles(me.account.name);
   await walkThrough();
+}
+
+/** The account's apps, as tiles in the landing page's order. */
+async function tiles(name) {
+  const res = await fetch("/api/v1/apps", { headers: { "X-Yen-App": "_site" } });
+  const apps = res.ok ? (await res.json()).apps : [];
+  who.textContent =
+    apps.length === 0 ? `Welcome, ${name}. Your apps arrive here soon.` : `Welcome, ${name}.`;
+  const list = document.getElementById("tiles");
+  list.textContent = "";
+  for (const a of apps) {
+    const li = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = `/a/${a.id}/`;
+    link.className = "tile";
+    if (a.accent) link.style.setProperty("--tile-accent", a.accent);
+    const art = document.createElement("span");
+    art.className = "art";
+    if (a.tile) {
+      const img = document.createElement("img");
+      img.src = a.tile;
+      img.alt = "";
+      img.width = 128;
+      img.height = 128;
+      art.append(img);
+    } else {
+      art.textContent = a.name.slice(0, 1).toUpperCase();
+    }
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = a.name;
+    link.append(art, label);
+    if (a.status === "draft") {
+      const draft = document.createElement("span");
+      draft.className = "draft";
+      draft.textContent = "Draft";
+      link.append(draft);
+    }
+    // The tile the page opens from carries over to it (§13.1).
+    link.addEventListener("click", () => (art.style.viewTransitionName = "opening-tile"));
+    li.append(link);
+    list.append(li);
+  }
+  list.hidden = apps.length === 0;
 }
 
 /** On an iPhone or iPad in Safari, how to put the site on the home screen — once. */

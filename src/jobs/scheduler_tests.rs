@@ -266,6 +266,7 @@ fn every_apps_jobs_are_made() {
         made,
         [
             ("_platform", "backup"),
+            ("_platform", "purge"),
             ("_platform", "tidy"),
             ("home", "remind")
         ]

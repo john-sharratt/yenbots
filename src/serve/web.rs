@@ -61,6 +61,12 @@ pub async fn design(headers: HeaderMap) -> Response {
     serve("_design/index.html", &headers)
 }
 
+/// `/_admin`: the admin page (§13.2). The page is the same for everyone;
+/// every route it calls is an admin's.
+pub async fn admin(headers: HeaderMap) -> Response {
+    serve("_admin/index.html", &headers)
+}
+
 /// `/_library`: the art library, searchable (§15.3).
 pub async fn library(headers: HeaderMap) -> Response {
     serve("_library/index.html", &headers)

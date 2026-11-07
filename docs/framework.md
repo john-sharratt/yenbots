@@ -300,6 +300,13 @@ is "Due", `shopping-list` is "Shopping list".
   the app's workflows as the account — a "send it now" button — and answers
   what it returned; a run that fails throws, `code` `workflow_failed`
   (`workflows.md`).
+- **The account's own settings**: `await app.settings.get()` answers a small
+  object the account chose in the app — `{}` until they choose something —
+  and `await app.settings.put(value)` replaces it whole, up to 16 KB, kept
+  with them on every device. A choice the whole family shares is a record,
+  not a setting.
+- **Counted when opened**: each page load tells the site the account opened
+  the app, which is what the admin page's usage reads; the app does nothing.
 
 ## Where it lives
 

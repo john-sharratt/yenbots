@@ -174,6 +174,10 @@ pub struct Manifest {
     /// The app's own look (§8.5), checked to read in both modes.
     #[serde(default)]
     pub theme: Theme,
+    /// The id it had before it was renamed (§20.1): its records, files and
+    /// jobs move to this id once, and its old address redirects here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub renamed_from: Option<String>,
 }
 
 /// The names the framework gives every record beside its fields
@@ -245,6 +249,11 @@ impl Manifest {
                 bail!("`{}` is not a workflow's name", s.run);
             }
             s.kind(&m.collections).map_err(Error::msg)?;
+        }
+        if let Some(old) = &m.renamed_from {
+            if !is_name(old) || old == &m.id {
+                bail!("renamed_from: `{old}` is not the app's earlier id");
+            }
         }
         for host in &m.fetch {
             if !is_host(host) {
@@ -382,6 +391,22 @@ collections:
             "fetch: `https://api.open-meteo.com` is not a host's name, as `api.open-meteo.com`"
         );
         assert!(with("fetch: [localhost]\n").is_err());
+    }
+
+    #[test]
+    fn a_manifest_names_the_id_it_was_renamed_from() {
+        let with = |extra: &str| Manifest::parse(&format!("{RECIPES}{extra}"), "recipes");
+        assert_eq!(
+            with("renamed_from: recipe\n")
+                .unwrap()
+                .renamed_from
+                .as_deref(),
+            Some("recipe")
+        );
+        assert_eq!(
+            with("renamed_from: recipes\n").unwrap_err().to_string(),
+            "renamed_from: `recipes` is not the app's earlier id"
+        );
     }
 
     #[test]

@@ -26,6 +26,7 @@ use super::theme::href;
 use crate::app::App;
 use crate::apps::FilesAt;
 use crate::git::git_bytes;
+use crate::lifecycle::rename::now_named;
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "no such file").into_response()
@@ -117,7 +118,12 @@ fn read(src: &Source, theme: &str, rel: &str, headers: &HeaderMap) -> Response {
 
 async fn serve(s: Arc<App>, id: String, rel: String, headers: HeaderMap) -> Response {
     let (Some(manifest), Some(at)) = (s.apps.get(&id), s.apps.files_at(&id)) else {
-        return not_found();
+        // An app renamed is reached at its old address too (§20.1).
+        return match now_named(&s.store.conn(), &id) {
+            Ok(Some(new)) => Redirect::permanent(&format!("/a/{new}/{rel}")).into_response(),
+            Ok(None) => not_found(),
+            Err(e) => internal(e),
+        };
     };
     if !(rel.is_empty() || served(&rel)) {
         return not_found();

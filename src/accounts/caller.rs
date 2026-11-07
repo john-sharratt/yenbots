@@ -9,6 +9,8 @@ use rusqlite::params;
 use super::identity::identify;
 use super::{get, now_ms, sign_in, tokens, Account, Status};
 use crate::config::Config;
+use crate::notify::newcomer::tell;
+use crate::notify::push::Pusher;
 use crate::store::Store;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,8 +105,9 @@ pub enum Who {
 }
 
 /// The caller of a request with `headers`, registering a signed-in person's
-/// account on first sight.
-pub fn who(store: &Store, cfg: &Config, headers: &HeaderMap) -> Result<Who> {
+/// account on first sight — and, when it must wait for an admin, telling
+/// Yen through `pusher` (§12.2).
+pub fn who(store: &Store, cfg: &Config, pusher: &Pusher, headers: &HeaderMap) -> Result<Who> {
     let bearer = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
@@ -117,7 +120,15 @@ pub fn who(store: &Store, cfg: &Config, headers: &HeaderMap) -> Result<Who> {
             },
             None => return Ok(Who::Nobody),
         },
-        (None, Some(id)) => (sign_in(store, cfg, &id, now_ms())?, None),
+        (None, Some(id)) => {
+            let (account, waits) = sign_in(store, cfg, &id, now_ms())?;
+            if waits {
+                if let Err(e) = tell(store, cfg, pusher, &account, now_ms()) {
+                    tracing::error!(target: "yenbot::accounts", email = %account.email, "Yen could not be told of a new account: {e:#}");
+                }
+            }
+            (account, None)
+        }
         (None, None) => return Ok(Who::Nobody),
     };
     if account.status != Status::Active {

@@ -14,5 +14,6 @@ pub mod deliver;
 pub mod devices;
 pub mod encrypt;
 pub mod inbox;
+pub mod newcomer;
 pub mod push;
 pub mod vapid;

@@ -66,6 +66,15 @@ export class Sdk {
         return answer.value;
       },
     };
+    /**
+     * The account's own settings for the app (§6.1), kept with them on
+     * every device: `get()` answers the object (`{}` until something is
+     * chosen), `put(value)` replaces it whole.
+     */
+    this.settings = {
+      get: async () => (await this.api.call("GET", `/settings/${this.id}`)).settings,
+      put: async (value) => (await this.api.call("PUT", `/settings/${this.id}`, value)).settings,
+    };
     this.queue = new Queue({
       send: (w) => this.send(w),
       storage,

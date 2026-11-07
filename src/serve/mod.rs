@@ -6,6 +6,7 @@
 //! | `GET /_/…` | the platform's web files, the framework and the design system, embedded ([`web`]) |
 //! | `GET /_/theme/{id}.css` | an app's theme, from its manifest ([`theme`]) |
 //! | `GET /_/manifest.webmanifest`, `GET /sw.js` | the installable site: its manifest and service worker ([`install`]) |
+//! | `GET /_admin` | the admin page (`web/_admin/index.html`), every route it calls an admin's |
 //! | `GET /_design` | the design system's catalogue |
 //! | `GET /_library` | the art library's page |
 //! | `GET /_library/{kind}/{id}-{width}.webp` | a library picture at one of its sizes ([`library`]) |
@@ -23,6 +24,7 @@
 pub mod admin;
 pub mod ai;
 pub mod app_files;
+pub mod app_use;
 pub mod asset;
 pub mod data;
 pub mod errors;
@@ -36,15 +38,19 @@ pub mod library;
 pub mod me;
 pub mod notify;
 pub mod openapi;
+pub mod oversight;
 pub mod reload;
 pub mod reply;
 pub mod routes;
 pub mod status;
 pub mod theme;
+pub mod transfer;
 pub mod web;
 
 #[cfg(test)]
 mod integrations_tests;
+#[cfg(test)]
+mod lifecycle_tests;
 #[cfg(test)]
 mod reference_tests;
 
@@ -62,6 +68,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/", get(web::landing))
         .route("/sw.js", get(install::service_worker))
         .route("/_/*path", get(web::platform_file))
+        .route("/_admin", get(web::admin))
         .route("/_design", get(web::design))
         .route("/_design/*path", get(web::design_file))
         .route("/_library", get(web::library))
@@ -212,7 +219,7 @@ mod tests {
         let (status, body) = get_as(&app(), "/v1/status", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
-        assert_eq!(body["store"]["schema"], 6);
+        assert_eq!(body["store"]["schema"], 7);
     }
 
     pub(super) async fn call(

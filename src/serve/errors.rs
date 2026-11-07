@@ -42,7 +42,7 @@ pub async fn report(State(s): State<Arc<App>>, headers: HeaderMap, raw: Bytes) -
         .unwrap_or("an unnamed browser")
         .to_string();
     tokio::task::spawn_blocking(move || {
-        let account = match who(&s.store, &s.cfg, &headers) {
+        let account = match who(&s.store, &s.cfg, &s.pusher, &headers) {
             Ok(Who::Active(c)) => c.account.id,
             Ok(Who::Waiting(a)) => a.id,
             Ok(Who::Nobody) => {

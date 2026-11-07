@@ -70,7 +70,7 @@ pub async fn active(
     headers: &HeaderMap,
 ) -> Result<Caller, Response> {
     let (a, h) = (app.clone(), headers.clone());
-    let found = tokio::task::spawn_blocking(move || who(&a.store, &a.cfg, &h))
+    let found = tokio::task::spawn_blocking(move || who(&a.store, &a.cfg, &a.pusher, &h))
         .await
         .map_err(internal)?
         .map_err(internal)?;

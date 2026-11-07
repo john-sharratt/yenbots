@@ -16,6 +16,7 @@ use super::reply::{active, body, error, internal, ok, Args};
 use crate::accounts::caller::Caller;
 use crate::accounts::now_ms;
 use crate::app::App;
+use crate::lifecycle::feedback::keep;
 use crate::notify::deliver::{deliver, Origin, ADMINS};
 use crate::notify::devices::{self, Subscription};
 use crate::notify::inbox::{self, Message};
@@ -216,6 +217,9 @@ pub async fn feedback(
             Ok(m) => m,
             Err(r) => return r,
         };
+        if let Err(e) = keep(&s.store.conn(), &m.id, c.id(), &text, now_ms()) {
+            return internal(e);
+        }
         let note = Message {
             title: format!("{} on {}", c.account.name, m.name),
             body: text,

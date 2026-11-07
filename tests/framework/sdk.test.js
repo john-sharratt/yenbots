@@ -36,6 +36,22 @@ function sdk(answers, cache = memoryCache()) {
 
 const shown = (c) => c.value.map((r) => [r.id, r.text, r.pending]);
 
+test("the account's settings are read and replaced whole", async () => {
+  const { s, calls } = sdk([
+    [200, { app: "home", settings: {} }],
+    [200, { app: "home", settings: { units: "cups" } }],
+  ]);
+  eq(await s.settings.get(), {});
+  eq(await s.settings.put({ units: "cups" }), { units: "cups" });
+  eq(
+    calls.map((c) => [c.method, c.url, c.body]),
+    [
+      ["GET", "/api/v1/settings/home", undefined],
+      ["PUT", "/api/v1/settings/home", { units: "cups" }],
+    ],
+  );
+});
+
 test("a collection loads, shows a write at once as pending, and lands it", async () => {
   const { s, calls } = sdk([
     [200, { docs: [doc("r1", "milk")], after: null }],

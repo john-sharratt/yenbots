@@ -250,6 +250,51 @@ pub const STEPS: &[&str] = &[
       PRIMARY KEY (app, hook)
     );
     "#,
+    // 7 — the apps over time: which get opened, each account's settings for
+    // each, the feedback sent from them, the apps archived, and those renamed.
+    r#"
+    CREATE TABLE app_opens (
+      app      TEXT NOT NULL,
+      account  TEXT NOT NULL,
+      day      TEXT NOT NULL,          -- YYYY-MM-DD, site time
+      opens    INTEGER NOT NULL,
+      PRIMARY KEY (app, account, day)
+    );
+
+    CREATE TABLE settings (
+      app         TEXT NOT NULL,
+      account     TEXT NOT NULL,
+      value       TEXT NOT NULL,       -- JSON, an object
+      updated_ms  INTEGER NOT NULL,
+      PRIMARY KEY (app, account)
+    );
+
+    CREATE TABLE feedback (
+      id       INTEGER PRIMARY KEY,
+      app      TEXT NOT NULL,
+      account  TEXT NOT NULL,
+      text     TEXT NOT NULL,
+      at_ms    INTEGER NOT NULL
+    );
+    CREATE INDEX feedback_by_app ON feedback (app, at_ms);
+
+    -- An app whose folder was removed, or an admin archived: not served,
+    -- its jobs held; its records and files kept until `purge_ms`.
+    CREATE TABLE archived_apps (
+      app          TEXT PRIMARY KEY,
+      reason       TEXT NOT NULL CHECK (reason IN ('removed', 'admin')),
+      held_jobs    TEXT NOT NULL,      -- JSON: the jobs archiving held
+      archived_ms  INTEGER NOT NULL,
+      purge_ms     INTEGER NOT NULL
+    );
+
+    -- An app renamed (`renamed_from:`): its old id, served as a redirect.
+    CREATE TABLE renames (
+      old     TEXT PRIMARY KEY,
+      new     TEXT NOT NULL,
+      at_ms   INTEGER NOT NULL
+    );
+    "#,
 ];
 
 /// The schema this build makes.

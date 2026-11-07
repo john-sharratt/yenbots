@@ -18,7 +18,7 @@ pub mod manifest;
 pub mod schedule;
 pub mod theme;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -28,6 +28,7 @@ use tokio::sync::Notify;
 use crate::check::files::from_disk;
 use crate::check::{check_app, told, Before, Refusal};
 use crate::git::git;
+use crate::lifecycle::archive::ids;
 use crate::reshape::migrate::behind;
 use crate::store::Store;
 use manifest::Manifest;
@@ -116,6 +117,11 @@ impl Apps {
         &self.root
     }
 
+    /// The app folders under `apps/` now, archived or not.
+    pub fn present(&self) -> Vec<String> {
+        folders(&self.dir)
+    }
+
     /// The commit the live checkout holds.
     pub fn head(&self) -> Option<String> {
         head(&self.root)
@@ -137,7 +143,15 @@ impl Apps {
     pub fn reload(&self) {
         let root = self.root().to_path_buf();
         let commit = head(&root);
-        let ids = folders(&self.dir);
+        let archived = ids(&self.store.conn()).unwrap_or_else(|e| {
+            tracing::error!(target: "yenbot::apps", "could not read the archived apps: {e:#}");
+            BTreeSet::new()
+        });
+        // An archived app is not served, whatever its folder holds (§20.1).
+        let ids: Vec<String> = folders(&self.dir)
+            .into_iter()
+            .filter(|id| !archived.contains(id))
+            .collect();
         let mut state = self.state.write().unwrap_or_else(|e| e.into_inner());
         let mut served = BTreeMap::new();
         let mut checked = BTreeMap::new();

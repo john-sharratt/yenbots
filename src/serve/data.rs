@@ -30,6 +30,15 @@ pub fn no_app(id: &str) -> Response {
     )
 }
 
+/// Where app `m`'s tile is served at the landing page's size: its library
+/// picture (`library/tiles/<id>`, §15) as 256 wide WebP.
+pub fn tile_url(m: &Manifest) -> Option<String> {
+    m.tile
+        .as_deref()
+        .and_then(|t| t.strip_prefix("library/"))
+        .map(|key| format!("/_library/{key}-256.webp"))
+}
+
 /// The app `id`, when the caller may open it. One the caller may not open
 /// is answered as one that is not there.
 pub fn opened(state: &App, id: &str, caller: &Caller) -> Result<Arc<Manifest>, Response> {
@@ -42,7 +51,7 @@ pub fn opened(state: &App, id: &str, caller: &Caller) -> Result<Arc<Manifest>, R
 }
 
 /// Run `work` on the blocking pool with the caller and the app.
-async fn with<F>(
+pub(super) async fn with<F>(
     state: Arc<App>,
     method: Method,
     headers: HeaderMap,
@@ -400,6 +409,8 @@ pub async fn apps(State(s): State<Arc<App>>, method: Method, headers: HeaderMap)
                 "description": m.description,
                 "status": m.status,
                 "private": access.private,
+                "tile": tile_url(&m),
+                "accent": m.theme.accent.as_ref().map(ToString::to_string),
             });
             out.push((place, listed));
         }

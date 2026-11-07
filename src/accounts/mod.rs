@@ -81,8 +81,9 @@ pub fn registration_of(conn: &Connection, cfg: &Config) -> Result<Registration> 
 }
 
 /// The account `id` is signed in as: registered on its first request,
-/// refreshed on every later one.
-pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<Account> {
+/// refreshed on every later one. The second half says whether this request
+/// registered it to wait for an admin.
+pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<(Account, bool)> {
     let admin = cfg.is_admin(&id.email);
     let conn = store.conn();
     let held: Option<String> = conn
@@ -93,6 +94,7 @@ pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<A
         )
         .optional()?;
     let picture = (!id.picture.is_empty()).then(|| id.picture.clone());
+    let mut waits = false;
     match held {
         Some(status) => {
             // An admin's account is always active: the list in the config
@@ -121,10 +123,13 @@ pub fn sign_in(store: &Store, cfg: &Config, id: &Identity, now: i64) -> Result<A
                 params![id.sub, id.provider, id.email, id.name, picture, status.as_str(), now],
             )?;
             tracing::info!(email = %id.email, status = status.as_str(), "accounts: registered");
+            waits = status == Status::Pending;
         }
     }
     drop(conn);
-    get(store, cfg, &id.sub)?.ok_or_else(|| anyhow!("the account just written is not there"))
+    let account = get(store, cfg, &id.sub)?
+        .ok_or_else(|| anyhow!("the account just written is not there"))?;
+    Ok((account, waits))
 }
 
 /// The account `id`, if there is one.
@@ -184,14 +189,21 @@ mod tests {
     fn a_newcomer_waits_and_an_admin_does_not() {
         let store = Store::in_memory().unwrap();
         let c = cfg("approve");
-        let cousin = sign_in(&store, &c, &person("2", "cousin@example.com"), 10).unwrap();
-        assert_eq!((cousin.status, cousin.admin), (Status::Pending, false));
-        let yen = sign_in(&store, &c, &person("1", "Yen@Example.com"), 11).unwrap();
-        assert_eq!((yen.status, yen.admin), (Status::Active, true));
+        let (cousin, waits) = sign_in(&store, &c, &person("2", "cousin@example.com"), 10).unwrap();
+        assert_eq!(
+            (cousin.status, cousin.admin, waits),
+            (Status::Pending, false, true)
+        );
+        let (yen, waits) = sign_in(&store, &c, &person("1", "Yen@Example.com"), 11).unwrap();
+        assert_eq!(
+            (yen.status, yen.admin, waits),
+            (Status::Active, true, false)
+        );
 
         let mut renamed = person("2", "cousin@example.com");
         renamed.name = "Cousin Mai".into();
-        let again = sign_in(&store, &c, &renamed, 20).unwrap();
+        let (again, waits) = sign_in(&store, &c, &renamed, 20).unwrap();
+        assert!(!waits, "registered once");
         assert_eq!(
             (
                 again.status,
@@ -206,7 +218,7 @@ mod tests {
     #[test]
     fn open_registration_admits_everyone_at_once() {
         let store = Store::in_memory().unwrap();
-        let a = sign_in(&store, &cfg("open"), &person("3", "a@example.com"), 1).unwrap();
-        assert_eq!(a.status, Status::Active);
+        let (a, waits) = sign_in(&store, &cfg("open"), &person("3", "a@example.com"), 1).unwrap();
+        assert_eq!((a.status, waits), (Status::Active, false));
     }
 }

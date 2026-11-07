@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(set(&s), Registration::Approve);
         set_registration(&s, Registration::Open).unwrap();
         assert_eq!(set(&s), Registration::Open);
-        let newcomer = sign_in(&s, &c, &person("5", "new@example.com"), 0).unwrap();
+        let (newcomer, _) = sign_in(&s, &c, &person("5", "new@example.com"), 0).unwrap();
         assert_eq!(newcomer.status, Status::Active);
     }
 }

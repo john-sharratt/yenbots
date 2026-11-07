@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Admin · Yen Bot</title>
+  <link rel="stylesheet" href="/_/yen.css">
+  <link rel="stylesheet" href="/_/site/admin.css">
+  <script type="module" src="/_/site/admin.js"></script>
+</head>
+<body>
+  <header>
+    <a href="/" class="home">Yen Bot</a>
+    <h1>Admin</h1>
+    <nav aria-label="Sections">
+      <a href="#accounts">Accounts</a>
+      <a href="#groups">Groups</a>
+      <a href="#apps">Apps</a>
+      <a href="#usage">Usage</a>
+      <a href="#jobs">Jobs</a>
+      <a href="#integrations">Keys and hooks</a>
+      <a href="#reports">Errors and feedback</a>
+      <a href="#archive">Archive</a>
+    </nav>
+  </header>
+  <p id="status" role="status" aria-live="polite"></p>
+  <main id="page">
+    <section id="accounts" aria-labelledby="accounts-h">
+      <h2 id="accounts-h">Accounts</h2>
+      <fieldset class="registration">
+        <legend>A new account</legend>
+        <label><input type="radio" name="registration" value="approve"> waits for an admin to approve it</label>
+        <label><input type="radio" name="registration" value="open"> is let in at once</label>
+      </fieldset>
+      <div id="pending"></div>
+      <div id="everyone"></div>
+    </section>
+    <section id="groups" aria-labelledby="groups-h">
+      <h2 id="groups-h">Groups</h2>
+      <form id="new-group" class="row">
+        <label>New group <input name="name" required pattern="[a-z][a-z0-9_\-]*" placeholder="household"></label>
+        <button type="submit">Make it</button>
+      </form>
+      <div id="group-list"></div>
+    </section>
+    <section id="apps" aria-labelledby="apps-h">
+      <h2 id="apps-h">Apps</h2>
+      <p class="note">The landing page shows them in this order. A draft opens for the admins alone.</p>
+      <div id="app-list"></div>
+    </section>
+    <section id="usage" aria-labelledby="usage-h">
+      <h2 id="usage-h">Usage, the last four weeks</h2>
+      <div id="usage-table"></div>
+    </section>
+    <section id="jobs" aria-labelledby="jobs-h">
+      <h2 id="jobs-h">Jobs</h2>
+      <div id="job-list"></div>
+    </section>
+    <section id="integrations" aria-labelledby="integrations-h">
+      <h2 id="integrations-h">Keys and hooks</h2>
+      <p class="note">A key is never shown again once it is saved. A hook's token is shown once, when it is made.</p>
+      <label class="row">App <select id="integration-app"></select></label>
+      <div id="secret-list"></div>
+      <form id="new-secret" class="row">
+        <label>Name <input name="name" required pattern="[a-z][a-z0-9_\-]*" placeholder="api-key"></label>
+        <label>Value <input name="value" required type="password" autocomplete="off"></label>
+        <button type="submit">Save the key</button>
+      </form>
+      <div id="hook-list"></div>
+    </section>
+    <section id="reports" aria-labelledby="reports-h">
+      <h2 id="reports-h">Errors and feedback</h2>
+      <h3>Feedback</h3>
+      <div id="feedback-list"></div>
+      <h3>What browsers reported</h3>
+      <div id="error-list"></div>
+    </section>
+    <section id="archive" aria-labelledby="archive-h">
+      <h2 id="archive-h">Archive</h2>
+      <p class="note">An app whose folder is removed is kept here thirty days, then purged. Its folder coming back restores it.</p>
+      <div id="archive-list"></div>
+    </section>
+  </main>
+</body>
+</html>

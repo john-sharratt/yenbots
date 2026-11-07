@@ -12,17 +12,21 @@ opened only by those it is shared with. A `draft` app (its `app.yaml`'s
 
 ### `GET /api/v1/admin/apps`
 
-Every app the live checkout holds, with its visibility, shares, place and
-collections.
+Every app the live checkout serves, with its tile, visibility, shares,
+place, collections, and what it stores. An archived app is not here: it is
+in [the archive](#get-apiv1adminarchive).
 
 ```http
 GET /api/v1/admin/apps
 
 200
-{"apps": [{"id": "recipes", "name": "Recipes", "status": "live", "collections": ["dishes", "lists"],
-           "access": {"private": false, "position": 0, "shares": []}},
-          {"id": "money", "name": "Money", "status": "draft", "collections": ["budget", "spent"],
-           "access": {"private": true, "position": null, "shares": ["account:2207…"]}}]}
+{"apps": [{"id": "recipes", "name": "Recipes", "status": "live", "tile": "/_library/tiles/bowl-coral-256.webp",
+           "collections": ["dishes", "lists"],
+           "access": {"private": false, "position": 0, "shares": []},
+           "storage": {"records": 214, "files": 31, "file_bytes": 18234011}},
+          {"id": "money", "name": "Money", "status": "draft", "tile": null, "collections": ["budget", "spent"],
+           "access": {"private": true, "position": null, "shares": ["account:2207…"]},
+           "storage": {"records": 12, "files": 0, "file_bytes": 0}}]}
 ```
 
 ### `GET /api/v1/admin/apps/{id}/check`
@@ -144,4 +148,137 @@ GET /api/v1/admin/data/notes/notes?order=-text&limit=1
 {"docs": [{"id": "01HJ…", "owner": "2207…", "version": 1, "created_ms": 1793960300000, "updated_ms": 1793960300000,
            "data": {"text": "Mai's school trip"}}],
  "after": "5b224d6169…"}
+```
+
+## Deleting, archiving and restoring
+
+Deleting an app is removing its folder from the repository. The site sees an
+app with records, files or jobs and no folder, and **archives** it: it is
+served to no one, its waiting jobs are held, and its records, files and jobs
+are kept thirty days, then purged by the platform's nightly `purge` job.
+Its folder coming back — read from the commit before it was removed and
+written again — restores it as it lands. An admin may also archive an app
+whose folder stays: it is hidden until restored, and kept as long as its
+folder is there.
+
+Renaming an app is moving its folder to the new id and adding
+`renamed_from: <old>` to its `app.yaml`, in one commit: its records, files,
+jobs and access move to the new id once, and `/a/<old>/…` redirects.
+
+### `POST /api/v1/admin/apps/{id}/archive`
+
+Archive an app: hidden from everyone, its waiting jobs held, everything of
+it kept.
+
+| Parameter | In | |
+|---|---|---|
+| `id` | path | the app's id |
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `no_app` | no such app is served |
+
+```http
+POST /api/v1/admin/apps/money/archive
+
+200
+{"app": "money", "archived": true}
+```
+
+### `POST /api/v1/admin/apps/{id}/restore`
+
+Serve an archived app again: the jobs archiving held wait again.
+
+| Parameter | In | |
+|---|---|---|
+| `id` | path | the app's id |
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `no_folder` | `apps/<id>/` is not in the repository: bring it back first |
+| 404 | `not_archived` | the app is not archived |
+
+```http
+POST /api/v1/admin/apps/money/restore
+
+200
+{"app": "money", "restored": true}
+```
+
+### `GET /api/v1/admin/archive`
+
+The archived apps, oldest first: why each is archived (`removed`, its folder
+gone, or `admin`), since when, when it is purged (`null` while its folder
+is there), and how many records and files it holds.
+
+```http
+GET /api/v1/admin/archive
+
+200
+{"archived": [{"app": "money", "reason": "removed", "archived_ms": 1793960000000,
+               "purge_ms": 1796552000000, "records": 214, "files": 3}]}
+```
+
+## Use, errors and feedback
+
+### `GET /api/v1/admin/usage`
+
+Which apps get used: by app and day — or by app and account — the times it
+was opened, the accounts that opened it, and what it asked the model
+(`chats`, `questions`) and the image engine (`pictures`). `key` is the day,
+or the account's id (`""` for a workflow running as the app).
+
+| Parameter | In | |
+|---|---|---|
+| `app` | query | only this app's |
+| `since` | query | from this day, `YYYY-MM-DD` in site time; four weeks ago when absent |
+| `by` | query | `day` or `account`; `day` when absent |
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `bad_request` | `by` is neither, or `since` is not a day |
+
+```http
+GET /api/v1/admin/usage?app=recipes&since=2026-11-01
+
+200
+{"since": "2026-11-01", "by": "day",
+ "usage": [{"app": "recipes", "key": "2026-11-06", "opens": 9, "accounts": 3, "chats": 2, "pictures": 1, "questions": 0},
+           {"app": "recipes", "key": "2026-11-07", "opens": 4, "accounts": 2, "chats": 0, "pictures": 0, "questions": 1}]}
+```
+
+### `GET /api/v1/admin/errors`
+
+What browsers reported going wrong (`docs/logs.md`), newest first: each
+line as the app's log holds it.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | query | only this app's; `_site` for the platform's own pages |
+| `limit` | query | how many, 1 to 500; 100 when absent |
+
+```http
+GET /api/v1/admin/errors?app=recipes&limit=1
+
+200
+{"errors": [{"at_ms": 1793960400000, "source": "yenbot/recipes",
+             "message": "TypeError: r.title is undefined — at https://yenbot.com.au/a/recipes/r/7 — account 2207… on Safari 18"}]}
+```
+
+### `GET /api/v1/admin/feedback`
+
+The notes people sent from the apps' menus, newest first, with who sent
+each.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | query | only this app's |
+| `limit` | query | how many, 1 to 500; 100 when absent |
+
+```http
+GET /api/v1/admin/feedback?app=chores
+
+200
+{"feedback": [{"app": "chores", "account": "2207…", "name": "Mai", "text": "Can it remind me too?",
+               "at_ms": 1793960400000}]}
 ```

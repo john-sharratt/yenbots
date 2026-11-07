@@ -20,6 +20,7 @@ mod git;
 mod integrations;
 mod jobs;
 mod library;
+mod lifecycle;
 mod logs;
 mod notify;
 mod publish;
@@ -50,6 +51,7 @@ use files::Files;
 use integrations::outbound::Https as Internet;
 use jobs::scheduler::{self, sync_all, Jobs};
 use library::Library;
+use lifecycle::settle;
 use logs::browser::Repeats;
 use logs::layer::StoreLayer;
 use logs::Logs;
@@ -128,12 +130,21 @@ async fn main() -> Result<()> {
         // their jobs — on each move of the live checkout.
         let (app, mut moved) = (app.clone(), reloads.subscribe());
         tokio::spawn(async move {
-            let first = app.library.clone();
-            let _ = tokio::task::spawn_blocking(move || first.reload()).await;
+            let first = app.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                if let Err(e) = settle(&first, accounts::now_ms()) {
+                    tracing::error!(target: "yenbot::apps", "the store could not be brought into step with the apps' folders: {e:#}");
+                }
+                first.library.reload();
+            })
+            .await;
             while moved.recv().await.is_ok() {
                 let app = app.clone();
                 let _ = tokio::task::spawn_blocking(move || {
                     app.apps.reload();
+                    if let Err(e) = settle(&app, accounts::now_ms()) {
+                        tracing::error!(target: "yenbot::apps", "the store could not be brought into step with the apps' folders: {e:#}");
+                    }
                     app.library.reload();
                     if let Err(e) = sync_all(&app, accounts::now_ms()) {
                         tracing::error!(target: "yenbot::jobs", "the platform's jobs could not be made: {e:#}");

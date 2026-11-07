@@ -1,5 +1,5 @@
 // The page's one app, made from the browser: the app its address names,
-// its errors reported (§18.1), its writes kept in IndexedDB, its
+// its open counted (§20.3), its errors reported (§18.1), its writes kept in IndexedDB, its
 // collections kept current by the change feed, `<yen-app>` and `<yen-bell>`
 // defined, the service worker registered (§11.1), and the page reloaded when
 // the site serves a new commit (§5.3).
@@ -75,11 +75,15 @@ export function boot() {
   });
   defineBell(sdk, { app: id, installable });
 
-  // Once the app is open: its feed, and its waiting writes tried again.
+  // Once the app is open: the open counted for the admins' usage (§20.3),
+  // its feed, and its waiting writes tried again.
   let listening = false;
   const listen = () => {
     if (listening) return;
     listening = true;
+    api.call("POST", `/opens/${id}`).catch(() => {
+      // An open not counted is a number a little low, nothing more.
+    });
     listenForChanges(`/api/v1/events/${id}`, EventSource, (event) => sdk.heard(event));
     addEventListener("online", () => sdk.queue.flush());
     setInterval(() => {

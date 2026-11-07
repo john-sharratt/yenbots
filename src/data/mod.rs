@@ -10,7 +10,10 @@
 //! | [`changes`] | each write told to the open pages that may see it |
 
 pub mod changes;
+pub mod csv;
 pub mod docs;
+pub mod export;
+pub mod import;
 pub mod nfc;
 pub mod query;
 pub mod search;

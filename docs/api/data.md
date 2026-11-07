@@ -227,3 +227,68 @@ X-Yen-App: money
           {"id": "01HK…", "owner": "1093…", "version": 5, "created_ms": 1793900000000, "updated_ms": 1793960200000,
            "data": {"left": 287.5}}]}
 ```
+
+### `GET /api/v1/export/{app}`
+
+The app's records as a file to save: every collection as JSON —
+`{app, collections: {name: [record]}}` — or one collection as CSV for a
+spreadsheet. A CSV starts with the byte-order mark, so a spreadsheet keeps
+its accents; its columns are `id`, `owner`, the fields by name, `created_ms`
+and `updated_ms`, and a list or an object is written as JSON. The records
+are those the caller may read; an admin's export holds every account's.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | path | the app's id |
+| `format` | query | `json` (every collection) or `csv` (one); `json` when absent |
+| `coll` | query | the collection, for a CSV |
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `bad_request` | a CSV without `coll`, or a format that is neither |
+| 404 | `no_collection` | no such collection |
+
+```http
+GET /api/v1/export/recipes?format=csv&coll=recipes
+
+200
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="recipes-recipes.csv"
+
+id,owner,serves,tags,title,created_ms,updated_ms
+19a5f1aa000000019f,1093…,4,"[""soup""]",Phở bò,1793960200000,1793960200000
+```
+
+### `POST /api/v1/import/{app}`
+
+Records in: each made new, as the caller, validated against its
+collection's fields like any write — all of them, or, when one is refused,
+none. JSON is what an export writes (`{collections: {name: [record]}}`); a
+CSV is one collection's, a header of field names then a record a line, its
+cells read by each field's type (a number, `true`/`false`, JSON for a list
+or an object; an empty cell leaves the field out). A record's own keys and
+columns — `id`, `owner`, `version`, `created_ms`, `updated_ms` — are made
+anew, so an export imported is a copy. The open pages read the app again.
+
+| Parameter | In | |
+|---|---|---|
+| `app` | path | the app's id |
+| `format` | query | `json` or `csv`; `json` when absent |
+| `coll` | query | the collection a CSV's rows are records of |
+
+| Status | Code | When |
+|---|---|---|
+| 422 | `invalid` | a record a field refuses; `detail` says which record of which collection |
+| 422 | `bad_import` | the body is not an export's shape, a column is no field, or a cell is not its field's type |
+
+```http
+POST /api/v1/import/recipes?format=csv&coll=recipes
+X-Yen-App: recipes
+
+title,serves
+Gỏi cuốn,4
+Chè ba màu,6
+
+200
+{"app": "recipes", "created": {"recipes": 2}}
+```

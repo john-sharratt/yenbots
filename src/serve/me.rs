@@ -16,11 +16,13 @@ use crate::app::App;
 pub async fn me(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     let token = headers.contains_key(header::AUTHORIZATION);
     let a = app.clone();
-    let found = match tokio::task::spawn_blocking(move || who(&a.store, &a.cfg, &headers)).await {
-        Ok(Ok(w)) => w,
-        Ok(Err(e)) => return internal(e),
-        Err(e) => return internal(e),
-    };
+    let found =
+        match tokio::task::spawn_blocking(move || who(&a.store, &a.cfg, &a.pusher, &headers)).await
+        {
+            Ok(Ok(w)) => w,
+            Ok(Err(e)) => return internal(e),
+            Err(e) => return internal(e),
+        };
     let site = &app.cfg.site_name;
     match found {
         Who::Nobody if token => error(

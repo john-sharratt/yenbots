@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::Error;
+use anyhow::{Error, Result};
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Method, StatusCode};
@@ -12,10 +12,11 @@ use axum::response::Response;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use super::data::tile_url;
 use super::reply::{admin, body, denied, error, internal, ok, Args};
 use crate::accounts::admin::{self as accounts, Action};
 use crate::accounts::caller::Caller;
-use crate::accounts::{now_ms, tokens};
+use crate::accounts::{now_ms, registration_of, tokens};
 use crate::app::App;
 use crate::apps::access::{access_of, set_order, set_private, set_shares};
 use crate::apps::manifest::Scope;
@@ -78,8 +79,13 @@ pub async fn accounts_list(
     headers: HeaderMap,
 ) -> Response {
     as_admin(s, method, headers, |s, _| {
+        let registration = match registration_of(&s.store.conn(), &s.cfg) {
+            Ok(Registration::Approve) => "approve",
+            Ok(Registration::Open) => "open",
+            Err(e) => return internal(e),
+        };
         match accounts::list(&s.store, &s.cfg) {
-            Ok(a) => ok(json!({"accounts": a})),
+            Ok(a) => ok(json!({"accounts": a, "registration": registration})),
             Err(e) => internal(e),
         }
     })
@@ -215,6 +221,20 @@ pub async fn members_remove(
     .await
 }
 
+/// What app `id` holds: its records, and its files and their bytes.
+fn storage_of(s: &App, id: &str) -> Result<Value> {
+    let conn = s.store.conn();
+    let records: i64 = conn.query_row("SELECT COUNT(*) FROM docs WHERE app = ?1", [id], |r| {
+        r.get(0)
+    })?;
+    let (files, bytes): (i64, i64) = conn.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(bytes), 0) FROM files WHERE app = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    Ok(json!({"records": records, "files": files, "file_bytes": bytes}))
+}
+
 pub async fn apps_list(State(s): State<Arc<App>>, method: Method, headers: HeaderMap) -> Response {
     as_admin(s, method, headers, |s, _| {
         let mut out = Vec::new();
@@ -224,12 +244,18 @@ pub async fn apps_list(State(s): State<Arc<App>>, method: Method, headers: Heade
                 Err(e) => return internal(e),
             };
             let collections: Vec<&String> = m.collections.keys().collect();
+            let stored = match storage_of(s, &m.id) {
+                Ok(st) => st,
+                Err(e) => return internal(e),
+            };
             out.push(json!({
                 "id": m.id,
                 "name": m.name,
                 "status": m.status,
+                "tile": tile_url(&m),
                 "access": access,
                 "collections": collections,
+                "storage": stored,
             }));
         }
         ok(json!({"apps": out}))

@@ -18,8 +18,13 @@ GET /api/v1/admin/accounts
 {"accounts": [{"id": "1093…", "email": "yen@example.com", "name": "Yen", "picture": null, "status": "active",
                "admin": true, "created_ms": 1793959331042, "seen_ms": 1793960000000},
               {"id": "2207…", "email": "mai@example.com", "name": "Mai", "picture": null, "status": "pending",
-               "admin": false, "created_ms": 1793960100000, "seen_ms": 1793960100000}]}
+               "admin": false, "created_ms": 1793960100000, "seen_ms": 1793960100000}],
+ "registration": "approve"}
 ```
+
+`registration` is how a new account becomes active: `approve`, waiting for
+an admin — the first admin `yenbot.yaml` lists is told of each newcomer, in
+her inbox and on her devices — or `open`, active at once.
 
 ### `POST /api/v1/admin/accounts/{id}/{action}`
 

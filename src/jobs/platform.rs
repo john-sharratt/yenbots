@@ -5,6 +5,7 @@
 //! |---|---|---|
 //! | `backup` | `daily 03:00`, caught up | the store's nightly backup |
 //! | `tidy` | `daily 04:00` | drops jobs run once and done a week ago |
+//! | `purge` | `daily 04:30` | removes apps archived thirty days ago, and files no record names (§20.1) |
 
 use anyhow::{bail, Error, Result};
 use jiff::tz::TimeZone;
@@ -15,13 +16,17 @@ use super::rule::Rule;
 use super::table::{insert, of_source, tidy, NewJob, PLATFORM};
 use crate::config::Config;
 use crate::files::mirror::mirror;
+use crate::files::Files;
+use crate::lifecycle::archive::{due, purge};
+use crate::lifecycle::orphans::remove;
 use crate::store::backups::back_up;
 use crate::store::Store;
 
 /// The platform's jobs: workflow, rule, caught up after the site was down.
-pub const JOBS: [(&str, &str, bool); 2] = [
+pub const JOBS: [(&str, &str, bool); 3] = [
     ("backup", "daily 03:00", true),
     ("tidy", "daily 04:00", false),
+    ("purge", "daily 04:30", false),
 ];
 
 /// How long a job run once is kept after it is done.
@@ -71,6 +76,17 @@ pub fn run(workflow: &str, store: &Store, cfg: &Config, now: i64) -> Result<Vec<
             let gone = tidy(&store.conn(), now - KEPT_MS)?;
             Ok(vec![format!("dropped {gone} jobs done a week ago")])
         }
+        "purge" => {
+            let mut log = Vec::new();
+            let apps = due(&store.conn(), now)?;
+            for app in &apps {
+                purge(&mut store.conn(), &cfg.files_dir(), app)?;
+                log.push(format!("purged {app}, archived thirty days ago"));
+            }
+            let files = remove(&store.conn(), &Files::new(cfg.files_dir()), now)?;
+            log.push(format!("removed {files} files no record names"));
+            Ok(log)
+        }
         other => bail!("the platform has no job `{other}`"),
     }
 }
@@ -93,7 +109,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             [
                 ("backup", Some(3 * 3_600_000), true),
-                ("tidy", Some(4 * 3_600_000), false)
+                ("tidy", Some(4 * 3_600_000), false),
+                ("purge", Some(4 * 3_600_000 + 1_800_000), false)
             ]
         );
     }
@@ -125,5 +142,35 @@ mod tests {
             ["today's backup was already written", "copied 0 new files"]
         );
         assert!(run("nope", &store, &cfg, 0).is_err());
+    }
+
+    #[test]
+    fn the_purge_job_purges() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = Config::from_yaml(
+            "data_dir: d\nlive_dir: l\nadmins: [a@b.c]\ntime_zone: UTC\nbus: {url: u, key_file: k}\n",
+            dir.path(),
+        )
+        .unwrap();
+        let store = Store::in_memory().unwrap();
+        store
+            .conn()
+            .execute(
+                "INSERT INTO archived_apps (app, reason, held_jobs, archived_ms, purge_ms) \
+                 VALUES ('old', 'removed', '[]', 0, 5)",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            run("purge", &store, &cfg, 5).unwrap(),
+            [
+                "purged old, archived thirty days ago",
+                "removed 0 files no record names"
+            ]
+        );
+        assert_eq!(
+            run("purge", &store, &cfg, 6).unwrap(),
+            ["removed 0 files no record names"]
+        );
     }
 }

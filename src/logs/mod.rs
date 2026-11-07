@@ -10,6 +10,7 @@
 pub mod api;
 pub mod browser;
 pub mod layer;
+pub mod reported;
 
 use std::sync::Arc;
 
