@@ -36,6 +36,7 @@ pub fn env_of(app: &App) -> Env {
         pusher: app.pusher.clone(),
         zen: app.zen.clone(),
         files: app.files.clone(),
+        web: app.web.clone(),
     }
 }
 

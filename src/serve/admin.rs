@@ -30,7 +30,12 @@ use crate::reshape;
 use crate::store::{backups, restore};
 
 /// Run `work` on the blocking pool for an admin caller.
-async fn as_admin<F>(s: Arc<App>, method: Method, headers: HeaderMap, work: F) -> Response
+pub(super) async fn as_admin<F>(
+    s: Arc<App>,
+    method: Method,
+    headers: HeaderMap,
+    work: F,
+) -> Response
 where
     F: FnOnce(&App, &Caller) -> Response + Send + 'static,
 {
@@ -42,7 +47,7 @@ where
     }
 }
 
-fn field<T: for<'de> Deserialize<'de>>(raw: &[u8], key: &str) -> Result<T, Response> {
+pub(super) fn field<T: for<'de> Deserialize<'de>>(raw: &[u8], key: &str) -> Result<T, Response> {
     let v = body(raw)?;
     serde_json::from_value(v.get(key).cloned().unwrap_or(Value::Null)).map_err(|e| {
         error(
@@ -59,7 +64,7 @@ fn whole<T: for<'de> Deserialize<'de>>(raw: &[u8]) -> Result<T, Response> {
         .map_err(|e| error(StatusCode::BAD_REQUEST, "bad_request", e.to_string()))
 }
 
-fn no_app(id: &str) -> Response {
+pub(super) fn no_app(id: &str) -> Response {
     error(
         StatusCode::NOT_FOUND,
         "no_app",

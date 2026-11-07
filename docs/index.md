@@ -13,6 +13,7 @@ One line per doc: when to read it. Read only what the task needs.
 | `design.md` | how an app looks: the tokens, an app's theme, the icons, every component, type — with `/_design` open beside it |
 | `library.md` | an app needs a picture — a tile, a header, an empty state, a sticker — or a picture must be drawn and added |
 | `ai.md` | an app chats with the AI, draws a picture, answers a question about its own data, or keeps a photo or a file |
+| `integrations.md` | an app calls another service — a weather feed, a school portal — keeps a key for one, or is called by one through a hook |
 | `workflows.md` | an app does something on its own — a reminder, a daily summary, a note when something changes — or a collection's fields change shape |
 
 The rest of the manual — the app-building guide, calling the API from

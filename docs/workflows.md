@@ -39,6 +39,8 @@ that never ends is stopped at the deadline and said so.
 | `data.collection(name)` | one of the app's collections: `list({where, order, limit, after})`, `get(id)`, `create(fields)`, `update(id, fields, {version})`, `delete(id)`, `sum({where, group, of})`, `search(q, {limit})` |
 | `ai.chat(ask)`, `ai.image(draw)`, `ai.ask(from, question)` | the model and the image engine, answered whole, for an app with `ai: true` (`ai.md`); a picture is kept as a file of the app, `{file, seed}` |
 | `notify(to, {title, body, open})` | a notification to `to` — an account's id, `group:<name>`, or `admins` — written to each one's inbox and pushed to their devices; only those who may open the app are told; `open` is the page a tap opens (`/a/<app>/…`, the app's start when absent); answers `{accounts, devices}`; the app's `app.yaml` says `notify: true` |
+| `fetch(url, {method, headers, body})` | a call to a host the app's `fetch:` lists, answered `{status, ok, headers, text(), json()}` (`integrations.md`) |
+| `secret(name)` | one of the app's keys, set on the admin page (`integrations.md`) |
 | `schedule(at, workflow, args)` | a job for later — `at` in milliseconds or a `Date` — acting for the same account; answers its id |
 | `run(workflow, args)` | another of the app's workflows, run in this run and awaited |
 | `once(key, fn)` | `fn` run once for `key`, whatever retries come; its answer is kept and given again |

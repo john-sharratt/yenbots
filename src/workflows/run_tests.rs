@@ -8,6 +8,9 @@ use super::*;
 use crate::accounts::{Account, Status};
 use crate::ai::fake::FakeZen;
 use crate::data::changes::Feed;
+use crate::integrations::fake::FakeWeb;
+use crate::integrations::outbound::{Call, Reply};
+use crate::integrations::secrets;
 use crate::jobs::table::list;
 
 const APP: &str =
@@ -27,6 +30,7 @@ fn env() -> Env {
         pusher: Pusher::channel().0,
         zen: Arc::new(FakeZen::default()),
         files: Files::new("files"),
+        web: Arc::new(FakeWeb::default()),
     }
 }
 
@@ -282,6 +286,61 @@ fn a_workflow_notifies() {
         })
         .unwrap();
     assert_eq!(title, "Mai finished the dishes");
+}
+
+/// **`ctx.fetch` calls only a host the manifest lists, sends a body that is
+/// not a string as JSON, and answers whatever the service said; `ctx.secret`
+/// reads the app's key.**
+#[test]
+fn a_workflow_calls_out_with_its_secret() {
+    let mut env = env();
+    let web = Arc::new(FakeWeb::replying(vec![Reply {
+        status: 201,
+        headers: BTreeMap::from([("content-type".into(), "application/json".into())]),
+        text: r#"{"temp": 21.5}"#.into(),
+    }]));
+    env.web = web.clone();
+    secrets::set(&env.store.conn(), "home", "api-key", "k-123", 0).unwrap();
+    let weather = "export default async function weather(ctx) {\n\
+                     const key = ctx.secret('api-key');\n\
+                     const r = await ctx.fetch('https://api.open-meteo.com/v1/x', {\n\
+                       method: 'post', headers: { 'X-Key': key }, body: { city: 'Sydney' } });\n\
+                     const out = [r.status, r.ok, r.headers['content-type'], (await r.json()).temp];\n\
+                     try { await ctx.fetch('https://evil.example/'); } catch (e) { out.push(e.code); }\n\
+                     try { ctx.secret('nope'); } catch (e) { out.push(e.code, e.message); }\n\
+                     return out;\n\
+                   }";
+    let out = run(
+        &env,
+        manifest("fetch: [api.open-meteo.com]\n"),
+        sources(&[("weather", weather)]),
+        ask("weather", json!({}), yen()),
+    );
+    assert_eq!(
+        out.answer.unwrap(),
+        json!([
+            201,
+            true,
+            "application/json",
+            21.5,
+            "forbidden",
+            "no_secret",
+            "home has no secret `nope`: set it on the admin page"
+        ])
+    );
+    assert_eq!(
+        web.sent(),
+        [Call {
+            url: "https://api.open-meteo.com/v1/x".into(),
+            method: "POST".into(),
+            headers: BTreeMap::from([
+                ("Content-Type".into(), "application/json".into()),
+                ("X-Key".into(), "k-123".into()),
+            ]),
+            body: Some(r#"{"city":"Sydney"}"#.into()),
+        }],
+        "one call, to the listed host alone"
+    );
 }
 
 /// **A workflow reaches nothing but `ctx`**: the host function is not left

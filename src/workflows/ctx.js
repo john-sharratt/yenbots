@@ -95,6 +95,37 @@ export const ctx = Object.freeze({
     image: async (draw) => call("ai_image", draw),
     ask: async (from, question) => call("ai_ask", from, question),
   }),
+  /**
+   * A call out (§19.1) to a host the app's `fetch:` lists, as the browser's
+   * `fetch` takes it: `init` is `{method, headers, body}`, a body that is
+   * not a string sent as JSON. Answers `{status, ok, headers, text(),
+   * json()}` whatever the status; throws `forbidden` for a host not listed
+   * and `unreachable` when the service did not answer.
+   */
+  async fetch(url, init = {}) {
+    const headers = { ...(init.headers ?? {}) };
+    let body = init.body ?? null;
+    if (body !== null && typeof body !== "string") {
+      body = JSON.stringify(body);
+      const typed = Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
+      if (!typed) headers["Content-Type"] = "application/json";
+    }
+    const reply = call("fetch", {
+      url: String(url),
+      method: (init.method ?? "GET").toUpperCase(),
+      headers,
+      body,
+    });
+    return Object.freeze({
+      status: reply.status,
+      ok: reply.status >= 200 && reply.status < 300,
+      headers: Object.freeze(reply.headers),
+      text: async () => reply.text,
+      json: async () => JSON.parse(reply.text),
+    });
+  },
+  /** One of the app's integration keys (§19.1), set on the admin page. */
+  secret: (name) => call("secret", name),
   /** A job for later: `workflow` run with `args` at `at` (milliseconds, or a Date). */
   async schedule(at, workflow, args = {}) {
     const when = at instanceof Date ? at.getTime() : at;

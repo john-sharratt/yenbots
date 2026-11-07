@@ -11,6 +11,7 @@
 //! | `GET /_library/{kind}/{id}-{width}.webp` | a library picture at one of its sizes ([`library`]) |
 //! | `GET /a/{id}/…` | an app's files and pages, from the live checkout ([`app_files`]) |
 //! | `/api/v1/…` | the API, every route defined once in [`routes::ROUTES`] |
+//! | `GET\|POST\|PUT /hooks/{app}/{name}` | an app's inbound hook, for a service calling in ([`hooks`]) |
 //! | `GET /v1/status` | the site's health ([`status`]) |
 //! | `GET /v1/logs`, `/v1/logs/sources` | the site as a log source |
 //!
@@ -27,7 +28,9 @@ pub mod data;
 pub mod errors;
 pub mod events;
 pub mod files;
+pub mod hooks;
 pub mod install;
+pub mod integrations;
 pub mod jobs;
 pub mod library;
 pub mod me;
@@ -40,6 +43,8 @@ pub mod status;
 pub mod theme;
 pub mod web;
 
+#[cfg(test)]
+mod integrations_tests;
 #[cfg(test)]
 mod reference_tests;
 
@@ -64,6 +69,10 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/a/:id", get(app_files::bare))
         .route("/a/:id/", get(app_files::index))
         .route("/a/:id/*path", get(app_files::file))
+        .route(
+            "/hooks/:app/:name",
+            get(hooks::hook).post(hooks::hook).put(hooks::hook),
+        )
         .route("/v1/status", get(status::status))
         .route("/v1/logs", get(api::logs))
         .route("/v1/logs/sources", get(api::sources));
@@ -105,11 +114,11 @@ mod tests {
     use crate::store::Store;
     use crate::version::BuildInfo;
 
-    const HOME: &str =
+    pub(super) const HOME: &str =
         "id: home\nname: Home\nstatus: live\ncollections:\n  notes:\n    scope: private\n    \
                         fields:\n      text: { type: text, required: true }\n    search: [text]\n";
 
-    fn serving(apps: Apps) -> Arc<App> {
+    pub(super) fn serving(apps: Apps) -> Arc<App> {
         serving_with(apps, Library::new("l", "l/cache"))
     }
 
@@ -203,10 +212,10 @@ mod tests {
         let (status, body) = get_as(&app(), "/v1/status", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["state"], "ready");
-        assert_eq!(body["store"]["schema"], 5);
+        assert_eq!(body["store"]["schema"], 6);
     }
 
-    async fn call(
+    pub(super) async fn call(
         app: &Arc<App>,
         method: &str,
         path: &str,
@@ -230,7 +239,7 @@ mod tests {
         answer(res.await.unwrap()).await
     }
 
-    async fn answer(res: Response) -> (StatusCode, Value) {
+    pub(super) async fn answer(res: Response) -> (StatusCode, Value) {
         let status = res.status();
         let bytes = to_bytes(res.into_body(), 1 << 20).await.unwrap();
         let v = serde_json::from_slice(&bytes).unwrap_or(Value::Null);

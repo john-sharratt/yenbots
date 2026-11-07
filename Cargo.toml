@@ -47,6 +47,8 @@ hkdf = "0.12.4"
 aes-gcm = "0.10.3"
 base64 = "0.22.1"
 ureq = "2.12.1"
+# An inbound hook's HMAC-SHA256 signature (src/integrations/hooks.rs).
+hmac = "0.12.1"
 
 [build-dependencies]
 sha2 = "0.10.9"

@@ -10,6 +10,7 @@ use crate::ai::fake::FakeZen;
 use crate::config::Config;
 use crate::data::changes::Changes;
 use crate::files::Files;
+use crate::integrations::fake::FakeWeb;
 use crate::notify::push::Pusher;
 use crate::reshape::migrate::migrate;
 use crate::workflows::run::Env;
@@ -195,6 +196,7 @@ fn an_app_waits_for_its_records_migration() {
         pusher: Pusher::channel().0,
         zen: Arc::new(FakeZen::default()),
         files: Files::new("files"),
+        web: Arc::new(FakeWeb::default()),
     };
     let src = in_tree(live.path(), "notes").unwrap();
     assert_eq!(migrate(&env, &pending[0], &src, "notes", 1).unwrap(), 1);

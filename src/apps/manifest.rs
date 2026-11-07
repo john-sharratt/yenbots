@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::schedule::Schedule;
 use super::theme::tokens::Tokens;
 use super::theme::Theme;
+use crate::integrations::outbound::is_host;
 use crate::jobs::span;
 
 /// Whether an app is on the landing page yet.
@@ -159,6 +160,9 @@ pub struct Manifest {
     /// Whether its workflows may send notifications (§11).
     #[serde(default, skip_serializing_if = "is_false")]
     pub notify: bool,
+    /// The hosts its workflows may call with `ctx.fetch` (§19.1).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fetch: Vec<String>,
     /// Jobs (§9.2), each running a workflow the check holds to a file in
     /// `workflows/`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -241,6 +245,11 @@ impl Manifest {
                 bail!("`{}` is not a workflow's name", s.run);
             }
             s.kind(&m.collections).map_err(Error::msg)?;
+        }
+        for host in &m.fetch {
+            if !is_host(host) {
+                bail!("fetch: `{host}` is not a host's name, as `api.open-meteo.com`");
+            }
         }
         m.deadline_ms().map_err(Error::msg)?;
         m.theme.check(Tokens::platform())?;
@@ -357,6 +366,22 @@ collections:
             told("deadline: 11m\n"),
             "deadline: `11m` is not from `1s` to `10m`"
         );
+    }
+
+    #[test]
+    fn a_manifest_lists_the_hosts_it_calls() {
+        let with = |extra: &str| Manifest::parse(&format!("{RECIPES}{extra}"), "recipes");
+        assert_eq!(
+            with("fetch: [api.open-meteo.com]\n").unwrap().fetch,
+            ["api.open-meteo.com"]
+        );
+        assert_eq!(
+            with("fetch: [\"https://api.open-meteo.com\"]\n")
+                .unwrap_err()
+                .to_string(),
+            "fetch: `https://api.open-meteo.com` is not a host's name, as `api.open-meteo.com`"
+        );
+        assert!(with("fetch: [localhost]\n").is_err());
     }
 
     #[test]

@@ -8,7 +8,10 @@ use std::sync::Arc;
 
 use axum::routing::{delete, get, patch, post, put, MethodRouter};
 
-use super::{admin, ai, data, errors, events, files, jobs, library, me, notify, openapi, reload};
+use super::{
+    admin, ai, data, errors, events, files, integrations, jobs, library, me, notify, openapi,
+    reload,
+};
 use crate::app::App;
 
 /// Where a parameter is read from.
@@ -482,6 +485,42 @@ pub const ROUTES: &[Route] = &[
             query("after", Ty::Str, "the cursor the last page answered"),
         ],
         body: &[], handler: || get(admin::data_all),
+    },
+    // Integrations.
+    Route {
+        method: "GET", path: "/api/v1/admin/secrets/{app}", page: "admin-integrations",
+        summary: "The app's integration keys, by name and when each was set; never a value.",
+        params: &[APP], body: &[], handler: || get(integrations::secrets_list),
+    },
+    Route {
+        method: "PUT", path: "/api/v1/admin/secrets/{app}/{name}", page: "admin-integrations",
+        summary: "Set one of the app's keys, replacing what it was.",
+        params: &[APP, path("name", "the key's name: lowercase letters, digits, `-` and `_`")],
+        body: &[needs("value", Ty::Str, "the key, up to 8 KB")],
+        handler: || put(integrations::secrets_set),
+    },
+    Route {
+        method: "DELETE", path: "/api/v1/admin/secrets/{app}/{name}", page: "admin-integrations",
+        summary: "Remove one of the app's keys.",
+        params: &[APP, path("name", "the key's name")], body: &[],
+        handler: || delete(integrations::secrets_remove),
+    },
+    Route {
+        method: "GET", path: "/api/v1/admin/hooks/{app}", page: "admin-integrations",
+        summary: "The app's inbound hooks — its files in `workflows/hooks/` — each with its address and whether it has a token.",
+        params: &[APP], body: &[], handler: || get(integrations::hooks_list),
+    },
+    Route {
+        method: "POST", path: "/api/v1/admin/hooks/{app}/{name}", page: "admin-integrations",
+        summary: "Make the hook's token, replacing the one it had; answered once, with the address to call.",
+        params: &[APP, path("name", "the hook, a file `workflows/hooks/<name>.js`")], body: &[],
+        handler: || post(integrations::hooks_token),
+    },
+    Route {
+        method: "DELETE", path: "/api/v1/admin/hooks/{app}/{name}", page: "admin-integrations",
+        summary: "Revoke the hook's token.",
+        params: &[APP, path("name", "the hook")], body: &[],
+        handler: || delete(integrations::hooks_revoke),
     },
     // Tokens.
     Route {

@@ -23,6 +23,8 @@ use crate::config::Config;
 use crate::data::changes::{change_of, Changes, Feed, Op};
 use crate::data::docs::{self, Change, Denied, Doc, Query, Sum};
 use crate::files::Files;
+use crate::integrations::outbound::{allowed, Call, Web};
+use crate::integrations::secrets;
 use crate::jobs::clock::spoken;
 use crate::jobs::follow::acting;
 use crate::jobs::table::{insert, NewJob};
@@ -47,6 +49,7 @@ pub struct Host {
     pub pusher: Pusher,
     pub zen: Arc<dyn Zen>,
     pub files: Files,
+    pub web: Arc<dyn Web>,
     /// The run's log, as `ctx.log` wrote it.
     pub log: Vec<String>,
     /// Whether it made a job, so the scheduler looks again.
@@ -156,6 +159,17 @@ impl Host {
             "schedule" => self.schedule(args)?,
             "notify" => self.notify(args)?,
             "ai_chat" | "ai_image" | "ai_ask" => self.ai(op, args)?,
+            "secret" => {
+                let name = str_arg(args, 0).unwrap_or_default();
+                match secrets::get(&self.store.conn(), &m.id, name)? {
+                    Some(v) => ok(json!(v)),
+                    None => refused(
+                        "no_secret",
+                        format!("{} has no secret `{name}`: set it on the admin page", m.id),
+                    ),
+                }
+            }
+            "fetch" => self.fetch(args),
             "has" => ok(json!(str_arg(args, 0).is_some_and(|n| self.sources.has(n)))),
             "once_get" => {
                 let key = str_arg(args, 0).unwrap_or_default();
@@ -301,6 +315,29 @@ impl Host {
                 }
             }
         })
+    }
+
+    /// `ctx.fetch(url, init)` (§19.1): to a host the manifest's `fetch:`
+    /// lists; the service's answer, whatever its status, or why it could not
+    /// be called.
+    fn fetch(&mut self, args: &[Value]) -> Value {
+        let call: Call = match serde_json::from_value(args.first().cloned().unwrap_or(Value::Null))
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return refused(
+                    "bad_request",
+                    format!("a call is `{{url, method?, headers?, body?}}`: {e}"),
+                )
+            }
+        };
+        if let Err(why) = allowed(&call, &self.manifest.fetch) {
+            return refused("forbidden", why);
+        }
+        match self.web.send(&call) {
+            Ok(reply) => json!({ "ok": reply }),
+            Err(e) => refused("unreachable", format!("{e:#}")),
+        }
     }
 
     /// `ctx.notify(to, {title, body, open})`: to an account's id,

@@ -9,6 +9,7 @@ use crate::apps::Apps;
 use crate::config::Config;
 use crate::data::changes::Changes;
 use crate::files::Files;
+use crate::integrations::outbound::Web;
 use crate::jobs::scheduler::Jobs;
 use crate::library::Library;
 use crate::logs::browser::Repeats;
@@ -35,6 +36,8 @@ pub struct App {
     pub pusher: Pusher,
     /// Zen's model and image engine (§14).
     pub zen: Arc<dyn Zen>,
+    /// The internet, for the apps' workflows' `ctx.fetch` (§19.1).
+    pub web: Arc<dyn Web>,
     /// The browsers' errors seen in the last minute, counted.
     pub repeats: Repeats,
     pub build: BuildInfo,
@@ -48,6 +51,7 @@ impl App {
     /// nowhere.
     pub fn for_tests(cfg: Config, store: Arc<Store>, apps: Apps) -> App {
         use crate::ai::fake::FakeZen;
+        use crate::integrations::fake::FakeWeb;
         use p256::SecretKey;
         App {
             library: Library::new(&cfg.live_dir, cfg.library_cache_dir()),
@@ -63,6 +67,7 @@ impl App {
             ),
             pusher: Pusher::channel().0,
             zen: Arc::new(FakeZen::default()),
+            web: Arc::new(FakeWeb::default()),
             repeats: Repeats::new(),
             store,
             build: BuildInfo::this(),

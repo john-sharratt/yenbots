@@ -17,6 +17,7 @@ mod data;
 mod files;
 mod gate;
 mod git;
+mod integrations;
 mod jobs;
 mod library;
 mod logs;
@@ -46,6 +47,7 @@ use apps::Apps;
 use config::Config;
 use data::changes::Changes;
 use files::Files;
+use integrations::outbound::Https as Internet;
 use jobs::scheduler::{self, sync_all, Jobs};
 use library::Library;
 use logs::browser::Repeats;
@@ -116,6 +118,7 @@ async fn main() -> Result<()> {
         vapid,
         pusher,
         zen,
+        web: Arc::new(Internet::new()),
         repeats: Repeats::new(),
         build: build.clone(),
         started_ms: accounts::now_ms(),

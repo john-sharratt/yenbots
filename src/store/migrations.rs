@@ -231,6 +231,25 @@ pub const STEPS: &[&str] = &[
     );
     CREATE INDEX ai_calls_by_app ON ai_calls (app, at_ms);
     "#,
+    // 6 — integrations: each app's keys for other services, and the tokens
+    // its inbound hooks are called with.
+    r#"
+    CREATE TABLE secrets (
+      app     TEXT NOT NULL,
+      name    TEXT NOT NULL,
+      value   TEXT NOT NULL,
+      set_ms  INTEGER NOT NULL,
+      PRIMARY KEY (app, name)
+    );
+
+    CREATE TABLE hook_tokens (
+      app         TEXT NOT NULL,
+      hook        TEXT NOT NULL,
+      hash        TEXT NOT NULL,      -- the token's SHA-256; never the token
+      created_ms  INTEGER NOT NULL,
+      PRIMARY KEY (app, hook)
+    );
+    "#,
 ];
 
 /// The schema this build makes.

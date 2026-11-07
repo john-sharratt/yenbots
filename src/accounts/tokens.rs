@@ -12,7 +12,9 @@ use crate::store::Store;
 /// The longest a token may last.
 pub const MAX_DAYS: i64 = 366;
 
-fn hash(secret: &str) -> String {
+/// The SHA-256 of `secret`, trimmed, as hex: what the store keeps of a
+/// token — an API token's, or an inbound hook's.
+pub fn hash(secret: &str) -> String {
     Sha256::digest(secret.trim().as_bytes())
         .iter()
         .map(|b| format!("{b:02x}"))
@@ -20,7 +22,7 @@ fn hash(secret: &str) -> String {
 }
 
 /// A secret of 256 bits from the operating system, as 64 hex digits.
-fn fresh_secret() -> Result<String> {
+pub fn fresh_secret() -> Result<String> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|e| anyhow::anyhow!("no randomness: {e}"))?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())

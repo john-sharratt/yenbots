@@ -20,6 +20,7 @@ section names a parameter or field its route does not take.
 | [admin-jobs](admin-jobs.md) | every job: run now, hold, release; a workflow run as the app |
 | [admin-accounts](admin-accounts.md) | accounts, groups, registration |
 | [admin-apps](admin-apps.md) | apps' visibility, shares and order; every account's records |
+| [admin-integrations](admin-integrations.md) | an app's keys for other services, and its inbound hooks' tokens |
 | [admin-tokens](admin-tokens.md) | API tokens |
 | [admin-backups](admin-backups.md) | the nightly backups, and restoring from one |
 

@@ -19,6 +19,7 @@ use crate::apps::manifest::Manifest;
 use crate::config::Config;
 use crate::data::changes::Changes;
 use crate::files::Files;
+use crate::integrations::outbound::Web;
 use crate::jobs::follow::acting;
 use crate::notify::push::Pusher;
 use crate::store::Store;
@@ -36,6 +37,8 @@ pub struct Env {
     /// pictures are kept as.
     pub zen: Arc<dyn Zen>,
     pub files: Files,
+    /// The internet, for `ctx.fetch`.
+    pub web: Arc<dyn Web>,
 }
 
 /// The job a run is of, as `ctx.job` shows it.
@@ -103,6 +106,7 @@ pub fn host_for(env: &Env, m: Arc<Manifest>, sources: Sources, caller: Caller) -
         pusher: env.pusher.clone(),
         zen: env.zen.clone(),
         files: env.files.clone(),
+        web: env.web.clone(),
         log: Vec::new(),
         scheduled: false,
     }

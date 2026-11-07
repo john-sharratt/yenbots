@@ -9,6 +9,7 @@ use crate::ai::fake::FakeZen;
 use crate::config::Config;
 use crate::data::changes::Changes;
 use crate::files::Files;
+use crate::integrations::fake::FakeWeb;
 use crate::notify::push::Pusher;
 use crate::store::Store;
 
@@ -30,6 +31,7 @@ fn env() -> Env {
         pusher: Pusher::channel().0,
         zen: Arc::new(FakeZen::default()),
         files: Files::new("files"),
+        web: Arc::new(FakeWeb::default()),
     }
 }
 
