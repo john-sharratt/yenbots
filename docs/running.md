@@ -1,4 +1,4 @@
-# Running Yen Bots
+# Running Yen Bot
 
 ## Where it is
 
@@ -7,7 +7,8 @@
 | Machine | BlackWorld, beside the gateway |
 | Service | `yenbot`, supervised by keep (`keep/stable/yenbot.exe`) |
 | Listens | `127.0.0.1:8096` — loopback only; the gateway forwards to it |
-| Config | `D:\yenbot\yenbot.yaml` (from this repository's `yenbot.yaml`) |
+| Config | `D:\yenbot\live\yenbot.yaml` — this repository's `yenbot.yaml`, as `main` holds it; read at start |
+| Library cache | `D:\yenbot\data\library\` — each picture sized once, by content |
 | Store | `D:\yenbot\data\yenbot.db` — SQLite, schema migrated on start |
 | Live files | `D:\yenbot\live` — a checkout of `origin/main`, never edited by hand; cloned with `git clone -c core.autocrlf=false git@github.com:john-sharratt/yenbots.git D:\yenbot\live` so it serves what was committed, byte for byte |
 | Bus key | `D:\yenbot\secrets\gateway.key` — yenbot's service key on the gateway (`cluster.service_keys` in `web/web.yaml`), 64 hex digits |

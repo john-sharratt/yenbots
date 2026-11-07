@@ -1,0 +1,15 @@
+Copyright (c) 2026 Yen Sharratt and John Sharratt. All rights reserved.
+
+This software, its documentation, and the pictures in its art library are
+proprietary and confidential. No part of them may be copied, modified,
+distributed, published or used, in whole or in part, without the prior
+written permission of the copyright holders.
+
+The third-party components it includes keep their own licences:
+
+- Lit (web/_/vendor/lit-all.min.js) — BSD-3-Clause, Google LLC
+- @preact/signals-core (web/_/vendor/signals-core.mjs) — MIT, Preact Team
+- Lucide icons (web/_/icons/sprite.svg) — ISC, Lucide Contributors; see
+  web/_/icons/LICENSE
+- Be Vietnam Pro and Fraunces (web/_/fonts/) — SIL Open Font License 1.1
+- The Rust crates in Cargo.lock — each under its own licence
