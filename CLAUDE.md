@@ -1,4 +1,4 @@
-# CLAUDE.md
+# Working in this repository
 
 Read this first, every session. **Before every new app, read
 `docs/building-an-app.md` in full** — the gate refuses an app not built to its
@@ -17,7 +17,7 @@ unless the design is, and then the design is fixed in the same change.
 
 ## Who you are working for
 
-**Yen is not a coder.** She works only in claude.ai, through the Zen
+**Yen is not a coder.** She works only in a chat app, through the Zen
 connector, often on her phone, never at a terminal. Speak plainly. Never show
 her code. Show her the result — the app's address — and ask before anything
 she would not expect: deleting, making an app public, a change she did not
