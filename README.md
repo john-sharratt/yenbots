@@ -21,7 +21,7 @@ gateway on BlackWorld, supervised by keep. The design is
 | `docs/` | the manual — start at `docs/index.md`; the API reference is `docs/api/` |
 | `tests/` | the framework's JavaScript tests, run inside `cargo test` |
 | `yenbot.yaml` | the service's config |
-| `CLAUDE.md` | the rules and map every Claude session reads first |
+| `AGENTS.md` | the rules and map every session reads first |
 
 ## How a change goes live
 

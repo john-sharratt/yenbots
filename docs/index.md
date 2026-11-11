@@ -4,7 +4,7 @@ One line per doc: when to read it. Read only what the task needs.
 
 | Doc | Read it when |
 |---|---|
-| `../CLAUDE.md` | every session, first |
+| `../AGENTS.md` | every session, first |
 | `building-an-app.md` | before every new app, in full, and before adding a page, a collection, a workflow or a schedule to one |
 | `templates.md` | choosing the template a new app starts from |
 | `manifest.md` | writing or changing an app's `app.yaml` |

@@ -13,7 +13,7 @@ brief a worker can act on alone — it has the repository, not this chat:
 
 - **What to change**, in full: the app, the files, the behaviour, Yen's
   words where they matter.
-- **What to read first**: `CLAUDE.md`, `docs/building-an-app.md` for an app,
+- **What to read first**: `AGENTS.md`, `docs/building-an-app.md` for an app,
   the docs of the parts it touches.
 - **How it knows it is done**: the check passes (it is the gate); for the
   platform, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`
