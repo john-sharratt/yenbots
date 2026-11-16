@@ -1,0 +1,60 @@
+id: lifecycle
+name: Employee Lifecycle
+description: Each person from first day to last day. Onboarding, the middle years, ER matters and leaving. Ask it anything.
+tile: library/tiles/checklist-teal
+status: draft
+guide: 1
+theme:
+  accent: "#1f6b66"
+ai: true
+collections:
+  people:
+    scope: private
+    fields:
+      name: { type: text, required: true, max: 120 }
+      role: { type: text, max: 120 }
+      team: { type: text, max: 120 }
+      manager: { type: text, max: 120 }
+      location: { type: text, max: 120 }
+      employment: { type: text, max: 40, default: full-time }
+      stage: { type: text, max: 20, default: onboarding }
+      start_date: { type: date }
+      probation_end: { type: date }
+      contract_end: { type: date }
+      last_day: { type: date }
+      notes: { type: text, long: true, max: 10000 }
+    search: [name, role, team, manager, location, notes]
+    index: [stage]
+  tasks:
+    scope: private
+    fields:
+      person: { type: ref, coll: people, required: true }
+      stage: { type: text, max: 20 }
+      title: { type: text, required: true, max: 200 }
+      due: { type: date }
+      done: { type: bool, default: false }
+      position: { type: number, default: 0 }
+    index: [person]
+  notes:
+    scope: private
+    fields:
+      person: { type: ref, coll: people, required: true }
+      matter: { type: ref, coll: matters }
+      day: { type: date, required: true }
+      kind: { type: text, max: 40 }
+      text: { type: text, long: true, required: true, max: 20000 }
+    search: [kind, text]
+    index: [person, matter]
+  matters:
+    scope: private
+    fields:
+      person: { type: ref, coll: people, required: true }
+      title: { type: text, required: true, max: 160 }
+      kind: { type: text, max: 40 }
+      status: { type: text, max: 20, default: open }
+      opened: { type: date }
+      closed: { type: date }
+      summary: { type: text, long: true, max: 20000 }
+      outcome: { type: text, long: true, max: 10000 }
+    search: [title, kind, summary, outcome]
+    index: [person, status]
