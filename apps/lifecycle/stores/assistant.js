@@ -56,7 +56,7 @@ export function context() {
     if (p.notes) out.push(`  About: ${p.notes}`);
   }
   out.push("", "OPEN CHECKLIST ITEMS");
-  for (const t of tasks.value) if (!t.done) out.push("- " + line([names.get(t.person), t.title, t.due && `due ${t.due}`]));
+  for (const t of tasks.value) if (!t.done) out.push("- " + line([names.get(t.person), stageLabel(t.stage), t.title, t.due && `due ${t.due}`]));
   out.push("", "ER MATTERS");
   for (const m of matters.value) {
     out.push("- " + line([names.get(m.person), m.title, m.kind, statusLabel(m.status), m.opened && `opened ${m.opened}`, m.closed && `closed ${m.closed}`]));

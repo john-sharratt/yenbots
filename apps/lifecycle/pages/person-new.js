@@ -1,4 +1,4 @@
-// Adding a person. Onboarding or Leaving starts their standard checklist.
+// Adding a person. The stage they start at gives them its standard checklist.
 import { YenElement, go, html, toast } from "/_/yen.js";
 import { EMPLOYMENT, STAGES } from "../stores/people.js";
 import { addPerson } from "../stores/journey.js";

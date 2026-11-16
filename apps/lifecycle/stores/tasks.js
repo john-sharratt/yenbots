@@ -3,14 +3,15 @@ import { app } from "/_/yen.js";
 
 export const tasks = app.collection("tasks", { order: "position" });
 
-export function tasksOf(personId) {
+/** A person's items, at `stage` alone when given. */
+export function tasksOf(personId, stage) {
   return tasks.value
-    .filter((t) => t.person === personId)
+    .filter((t) => t.person === personId && (!stage || (t.stage ?? "onboarding") === stage))
     .sort((a, b) => Number(!!a.done) - Number(!!b.done) || (a.due ?? "9999").localeCompare(b.due ?? "9999") || (a.position ?? 0) - (b.position ?? 0));
 }
 
-export function progressOf(personId) {
-  const all = tasksOf(personId);
+export function progressOf(personId, stage) {
+  const all = tasksOf(personId, stage);
   return { done: all.filter((t) => t.done).length, total: all.length };
 }
 

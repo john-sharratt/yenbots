@@ -141,7 +141,7 @@ export class PersonPage extends YenElement {
       </yen-page>`;
     }
     const stage = p.stage ?? "onboarding";
-    const { done, total } = progressOf(p.id);
+    const { done, total } = progressOf(p.id, stage);
     const now = today();
     const canEdit = people.mayEdit(p);
     return html`<yen-page heading=${p.name} back="./">
@@ -155,18 +155,18 @@ export class PersonPage extends YenElement {
       <h3>Where they are</h3>
       <yen-select
         label="Stage"
-        hint="Onboarding, Employed and Leaving add their standard checklist"
+        hint="Each stage shows its own checklist"
         .options=${STAGES}
         .value=${stage}
         ?disabled=${this.moving || !canEdit}
         @change=${(e) => this.move(p, e.detail)}
       ></yen-select>
 
-      <h3>Checklist</h3>
+      <h3>${stageLabel(stage)} checklist</h3>
       ${total ? html`<yen-progress .value=${done / total} label=${`${done} of ${total} done`}></yen-progress>` : ""}
       <yen-list
         divided
-        .items=${tasksOf(p.id)}
+        .items=${tasksOf(p.id, stage)}
         .item=${(t) => html`<task-row
           .task=${t}
           due=${t.due ? `${showDay(t.due)}, ${fromNow(t.due)}` : ""}

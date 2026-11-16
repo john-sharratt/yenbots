@@ -7,7 +7,7 @@ export const people = app.collection("people", { order: "name" });
 export const STAGES = [
   { value: "onboarding", label: "Onboarding" },
   { value: "active", label: "Employed" },
-  { value: "offboarding", label: "Leaving" },
+  { value: "offboarding", label: "Offboarding" },
   { value: "left", label: "Left" },
 ];
 

@@ -31,7 +31,7 @@ export const upcoming = computed(() => {
   for (const t of tasks.value) {
     if (t.done || !t.due || t.due > taskUntil) continue;
     const p = byId.get(t.person);
-    if (!p || p.stage === "left") continue;
+    if (!p || p.stage === "left" || (t.stage ?? "onboarding") !== (p.stage ?? "onboarding")) continue;
     out.push({ id: t.id, day: t.due, label: t.title, who: p.name, href: `p/${p.id}`, late: t.due < now });
   }
   return out.sort((a, b) => a.day.localeCompare(b.day));
