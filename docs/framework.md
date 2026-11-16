@@ -308,6 +308,24 @@ is "Due", `shopping-list` is "Shopping list".
 - **Counted when opened**: each page load tells the site the account opened
   the app, which is what the admin page's usage reads; the app does nothing.
 
+## Demo mode
+
+An app with `demo: true` (`manifest.md`, `access.md`) opens for a visitor
+nobody is signed in on. For them, `app.demo` is `true` and:
+
+- every `app.collection(name, opts)` is kept in their browser alone, with the
+  same surface as above (`web/_/framework/local-collection.js`): nothing is
+  sent, and no change feed;
+- `app.ai.*`, `app.files.*`, `app.workflows.run`, `app.settings.*` and
+  `app.notify.enable` throw an error whose `code` is `sign_in` and whose
+  `detail` is "Sign in to use this.";
+- the shell shows the app with a banner, "This is a demo. What you add stays
+  on this device.", and a Sign in link, in place of its sign-in page; the bell
+  and the account picture are hidden.
+
+A signed-in visitor always gets the app as usual. An app hides what a demo
+visitor cannot use (`if (app.demo) …`), through a store.
+
 ## Where it lives
 
 | File | |

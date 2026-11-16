@@ -85,10 +85,11 @@ to an unsigned visitor: the demo collection lives entirely in the browser's
 IndexedDB, written by the framework's local-collection module, never through
 the API.
 
-A signed-in visitor never enters demo mode: the framework checks the page's
-`<meta name="yen-demo">` tag **and** that the visitor is not signed in, so
-signing in always takes over. The app's `app.demo` flag is true only when both
-hold.
+A signed-in visitor never enters demo mode: the site adds the page's
+`<meta name="yen-demo">` tag only when the app is live with `demo: true` **and**
+the gateway names nobody on the request (`src/serve/app_files.rs`), so signing
+in always takes over. The framework's `app.demo` is true exactly when the tag is
+there.
 
 When the visitor later signs in, the demo data stays in their browser's local
 store; the app may offer to copy it into the server's records, but that is the
