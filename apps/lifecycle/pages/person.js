@@ -2,10 +2,10 @@
 // matters and their file notes.
 import { YenElement, ask, css, go, html, repeat, toast } from "/_/yen.js";
 import { EMPLOYMENT, STAGES, employmentLabel, people, probationEnd, stageLabel } from "../stores/people.js";
-import { addTask, progressOf, removeTask, tasks, tasksOf, toggle } from "../stores/tasks.js";
+import { addTask, progressOf, removeTask, tasks, tasksOf } from "../stores/tasks.js";
 import { KINDS, addNote, notesOf, removeNote } from "../stores/notes.js";
 import { matters, mattersOf, statusLabel } from "../stores/matters.js";
-import { moveTo, removePerson, savePerson } from "../stores/journey.js";
+import { moveTo, removePerson, savePerson, tick } from "../stores/journey.js";
 import { fromNow, showDay, today } from "../stores/days.js";
 import "../components/person-editor.js";
 import "../components/task-row.js";
@@ -155,7 +155,7 @@ export class PersonPage extends YenElement {
       <h3>Where they are</h3>
       <yen-select
         label="Stage"
-        hint="Onboarding and Leaving add the standard checklist"
+        hint="Onboarding, Employed and Leaving add their standard checklist"
         .options=${STAGES}
         .value=${stage}
         ?disabled=${this.moving || !canEdit}
@@ -171,7 +171,7 @@ export class PersonPage extends YenElement {
           .task=${t}
           due=${t.due ? `${showDay(t.due)}, ${fromNow(t.due)}` : ""}
           ?late=${!!t.due && t.due < now}
-          @toggle=${(e) => toggle(e.detail)}
+          @toggle=${(e) => tick(e.detail)}
           @remove=${(e) => removeTask(e.detail)}
         ></task-row>`}
         ?loading=${tasks.loading.value}

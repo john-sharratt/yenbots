@@ -5,16 +5,37 @@ import { tasks, tasksOf } from "./tasks.js";
 import { notes, notesOf, notesOfMatter } from "./notes.js";
 import { matters, mattersOf } from "./matters.js";
 import { checklistFor } from "./checklists.js";
-import { today } from "./days.js";
+import { addYears, today } from "./days.js";
 
-/** Add the standard checklist for `stage`, leaving out what is already on it. */
+/** Add the standard checklist for `stage`, leaving out what is already on it. A yearly item is left out only while one is still open. */
 export async function addChecklist(person, stage) {
-  const have = new Set();
-  for (const t of tasksOf(person.id)) have.add(t.title);
+  const all = new Set();
+  const open = new Set();
+  for (const t of tasksOf(person.id)) {
+    all.add(t.title);
+    if (!t.done) open.add(t.title);
+  }
   const base = Date.now();
   for (const item of checklistFor(person, stage, today())) {
-    if (have.has(item.title)) continue;
-    await tasks.add({ person: person.id, stage, title: item.title, due: item.due, done: false, position: base + item.position });
+    if (item.repeat ? open.has(item.title) : all.has(item.title)) continue;
+    await tasks.add({
+      person: person.id,
+      stage,
+      title: item.title,
+      due: item.due,
+      done: false,
+      position: base + item.position,
+      ...(item.repeat ? { repeat: item.repeat } : {}),
+    });
+  }
+}
+
+/** Tick an item off, or put it back. Ticking off a yearly one books next year's. */
+export async function tick(t) {
+  await tasks.update(t.id, { done: !t.done });
+  if (!t.done && t.repeat === "yearly") {
+    const next = addYears(t.due ?? today(), 1);
+    await tasks.add({ person: t.person, stage: t.stage, title: t.title, due: next, done: false, position: Date.now(), repeat: "yearly" });
   }
 }
 

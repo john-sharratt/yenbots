@@ -87,7 +87,7 @@ export class PersonEditor extends YenElement {
       ${this.stages
         ? html`<yen-select
             label="Where they are"
-            hint="Onboarding and Leaving start the standard checklist"
+            hint="Onboarding, Employed and Leaving start their standard checklist"
             .options=${this.stages}
             .value=${v.stage}
             @change=${(e) => this.set("stage", e.detail)}

@@ -35,6 +35,7 @@ collections:
       due: { type: date }
       done: { type: bool, default: false }
       position: { type: number, default: 0 }
+      repeat: { type: text, max: 20 }
     index: [person]
   notes:
     scope: private

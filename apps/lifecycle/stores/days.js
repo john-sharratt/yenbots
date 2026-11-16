@@ -23,6 +23,21 @@ export function addDays(day, n) {
   return iso(d);
 }
 
+/** The day `n` years after `day`. */
+export function addYears(day, n) {
+  const d = parse(day);
+  d.setFullYear(d.getFullYear() + n);
+  return iso(d);
+}
+
+/** The next anniversary of `start` from `now` on: a year from now when there is no start. */
+export function nextAnniversary(start, now) {
+  if (!start) return addYears(now, 1);
+  let day = start;
+  while (day <= now) day = addYears(day, 1);
+  return day;
+}
+
 /** How many days from `a` to `b`. */
 export function daysFrom(a, b) {
   const x = parse(a);

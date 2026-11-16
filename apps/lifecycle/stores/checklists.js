@@ -1,8 +1,11 @@
-// The standard checklists, added when a person starts onboarding or leaving.
-// `from` is the day each item is counted from: now, the start date, the end
-// of probation or the last day. `days` is how far from it the item is due.
-// `only` keeps an item to some kinds of employment.
-import { addDays } from "./days.js";
+// The standard checklists, added when a person starts onboarding, becomes
+// employed or starts leaving. `from` is the day each item is counted from:
+// now, the start date, halfway through probation, the end of probation, the
+// next work anniversary or the last day. `days` is how far from it the item
+// is due; an item whose day cannot be worked out is left off. `only` keeps an
+// item to some kinds of employment. `repeat: yearly` books the next one when
+// it is ticked off.
+import { addDays, daysFrom, nextAnniversary } from "./days.js";
 import { probationEnd } from "./people.js";
 
 const EMPLOYEE = ["full-time", "part-time", "fixed-term", "casual"];
@@ -27,9 +30,11 @@ export const CHECKLISTS = {
     { title: "Code of conduct and key policies acknowledged", from: "start", days: 7 },
     { title: "One month check-in", from: "start", days: 30, only: EMPLOYEE },
     { title: "Three month check-in", from: "start", days: 90, only: EMPLOYEE },
+    { title: "Probation midway check-in", from: "probationMid", days: 0, only: EMPLOYEE },
     { title: "Probation review meeting", from: "probation", days: -14, only: EMPLOYEE },
     { title: "Probation outcome confirmed in writing", from: "probation", days: -7, only: EMPLOYEE },
   ],
+  active: [{ title: "Annual performance review", from: "anniversary", days: 0, only: EMPLOYEE, repeat: "yearly" }],
   offboarding: [
     { title: "Resignation received or termination letter issued", from: "now", days: 0 },
     { title: "Last day and notice confirmed in writing", from: "now", days: 2 },
@@ -50,15 +55,18 @@ export const CHECKLISTS = {
 export function checklistFor(person, stage, now) {
   const kind = person.employment ?? "full-time";
   const start = person.start_date ?? now;
+  const probation = probationEnd(person);
   const from = {
     now,
     start,
-    probation: probationEnd(person),
+    probation,
+    probationMid: probation && person.start_date ? addDays(person.start_date, Math.round(daysFrom(person.start_date, probation) / 2)) : "",
+    anniversary: nextAnniversary(person.start_date, now),
     last: person.last_day ?? addDays(now, 28),
   };
   const items = CHECKLISTS[stage] ?? [];
   return items
     .filter((i) => !i.only || i.only.includes(kind))
-    .filter((i) => i.from !== "probation" || from.probation)
-    .map((i, n) => ({ title: i.title, due: addDays(from[i.from], i.days), position: n }));
+    .filter((i) => from[i.from])
+    .map((i, n) => ({ title: i.title, due: addDays(from[i.from], i.days), position: n, repeat: i.repeat }));
 }
