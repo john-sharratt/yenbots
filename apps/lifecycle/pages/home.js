@@ -5,6 +5,7 @@ import { STAGES, counts, inStage, nameOf, people, stageLabel } from "../stores/p
 import { flagOf, lateCount, upcoming } from "../stores/upcoming.js";
 import { matters, openMatters, statusLabel } from "../stores/matters.js";
 import { fromNow, showDay } from "../stores/days.js";
+import { isDemo, seedDemo } from "../stores/demo.js";
 import "../components/person-row.js";
 import "../components/upcoming-row.js";
 import "../components/matter-row.js";
@@ -31,6 +32,11 @@ export class LifecycleHome extends YenElement {
     this.stage = "onboarding";
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    seedDemo();
+  }
+
   render() {
     const late = lateCount.value;
     const tabs = [
@@ -39,7 +45,7 @@ export class LifecycleHome extends YenElement {
       { id: "matters", label: `ER matters (${openMatters.value.length})`, icon: "alert" },
     ];
     return html`<yen-page heading="Employee Lifecycle">
-      <yen-button slot="actions" variant="secondary" size="small" icon="sparkles" href="ask">Ask</yen-button>
+      ${isDemo() ? "" : html`<yen-button slot="actions" variant="secondary" size="small" icon="sparkles" href="ask">Ask</yen-button>`}
       <yen-tabs .tabs=${tabs} selected=${this.tab} label="What to show" @change=${(e) => (this.tab = e.detail)}>
         <div slot="people">
           <div class="stages">
