@@ -1,15 +1,15 @@
 // What is coming up: key dates in the next month and checklist items due in
 // the next fortnight or already late, soonest first.
 import { computed } from "/_/yen.js";
-import { people } from "./people.js";
+import { people, probationEnd } from "./people.js";
 import { tasks } from "./tasks.js";
 import { addDays, daysFrom, fromNow, today } from "./days.js";
 
 const DATES = [
-  ["start_date", "Starts"],
-  ["probation_end", "Probation ends"],
-  ["contract_end", "Contract ends"],
-  ["last_day", "Last day"],
+  ["Starts", (p) => p.start_date],
+  ["Probation ends", probationEnd],
+  ["Contract ends", (p) => p.contract_end],
+  ["Last day", (p) => p.last_day],
 ];
 const AHEAD = 30;
 const TASKS_AHEAD = 14;
@@ -22,9 +22,9 @@ export const upcoming = computed(() => {
   for (const p of people.value) {
     byId.set(p.id, p);
     if (p.stage === "left") continue;
-    for (const [field, label] of DATES) {
-      const day = p[field];
-      if (day && day >= now && day <= until) out.push({ id: `${p.id}-${field}`, day, label, who: p.name, href: `p/${p.id}`, late: false });
+    for (const [label, dayOf] of DATES) {
+      const day = dayOf(p);
+      if (day && day >= now && day <= until) out.push({ id: `${p.id}-${label}`, day, label, who: p.name, href: `p/${p.id}`, late: false });
     }
   }
   const taskUntil = addDays(now, TASKS_AHEAD);
@@ -42,8 +42,8 @@ export const lateCount = computed(() => upcoming.value.filter((u) => u.late).len
 /** A word on the person's row when a key date is close: `Probation ends in 9 days`. */
 export function flagOf(p) {
   const now = today();
-  for (const [field, label] of DATES.slice(1)) {
-    const day = p[field];
+  for (const [label, dayOf] of DATES.slice(1)) {
+    const day = dayOf(p);
     if (day && day >= now && daysFrom(now, day) <= AHEAD) return `${label} ${fromNow(day)}`;
   }
   return "";

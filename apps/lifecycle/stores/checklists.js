@@ -3,6 +3,7 @@
 // of probation or the last day. `days` is how far from it the item is due.
 // `only` keeps an item to some kinds of employment.
 import { addDays } from "./days.js";
+import { probationEnd } from "./people.js";
 
 const EMPLOYEE = ["full-time", "part-time", "fixed-term", "casual"];
 
@@ -52,11 +53,12 @@ export function checklistFor(person, stage, now) {
   const from = {
     now,
     start,
-    probation: person.probation_end ?? addDays(start, 180),
+    probation: probationEnd(person),
     last: person.last_day ?? addDays(now, 28),
   };
   const items = CHECKLISTS[stage] ?? [];
   return items
     .filter((i) => !i.only || i.only.includes(kind))
+    .filter((i) => i.from !== "probation" || from.probation)
     .map((i, n) => ({ title: i.title, due: addDays(from[i.from], i.days), position: n }));
 }

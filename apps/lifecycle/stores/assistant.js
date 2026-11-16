@@ -2,7 +2,7 @@
 // conversation. The conversation lasts while the app is open; the model
 // remembers nothing between calls, so the whole of it is sent each time.
 import { app, signal } from "/_/yen.js";
-import { employmentLabel, people, stageLabel } from "./people.js";
+import { employmentLabel, people, probationEnd, stageLabel } from "./people.js";
 import { tasks } from "./tasks.js";
 import { notes } from "./notes.js";
 import { matters, statusLabel } from "./matters.js";
@@ -47,7 +47,8 @@ export function context() {
           employmentLabel(p.employment),
           `stage ${stageLabel(p.stage)}`,
           p.start_date && `started ${p.start_date}`,
-          p.probation_end && `probation ends ${p.probation_end}`,
+          p.probation_weeks && `probation ${p.probation_weeks} weeks`,
+          probationEnd(p) && `probation ends ${probationEnd(p)}`,
           p.contract_end && `contract ends ${p.contract_end}`,
           p.last_day && `last day ${p.last_day}`,
         ]),

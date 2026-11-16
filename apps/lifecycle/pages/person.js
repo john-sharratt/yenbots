@@ -1,7 +1,7 @@
 // One person: their details, where they are, their checklist, their ER
 // matters and their file notes.
 import { YenElement, ask, css, go, html, repeat, toast } from "/_/yen.js";
-import { EMPLOYMENT, STAGES, employmentLabel, people, stageLabel } from "../stores/people.js";
+import { EMPLOYMENT, STAGES, employmentLabel, people, probationEnd, stageLabel } from "../stores/people.js";
 import { addTask, progressOf, removeTask, tasks, tasksOf, toggle } from "../stores/tasks.js";
 import { KINDS, addNote, notesOf, removeNote } from "../stores/notes.js";
 import { matters, mattersOf, statusLabel } from "../stores/matters.js";
@@ -102,13 +102,17 @@ export class PersonPage extends YenElement {
   }
 
   facts(p) {
+    const end = probationEnd(p);
+    const probation = p.probation_weeks
+      ? `${p.probation_weeks} weeks${end ? `, ends ${showDay(end)}, ${fromNow(end)}` : ""}`
+      : end && `Ends ${showDay(end)}, ${fromNow(end)}`;
     const rows = [
       ["Role", [p.role, p.team].filter(Boolean).join(", ")],
       ["Manager", p.manager],
       ["Location", p.location],
       ["Employment", employmentLabel(p.employment)],
       ["Started", showDay(p.start_date)],
-      ["Probation ends", p.probation_end && `${showDay(p.probation_end)}, ${fromNow(p.probation_end)}`],
+      ["Probation", probation],
       ["Contract ends", p.contract_end && `${showDay(p.contract_end)}, ${fromNow(p.contract_end)}`],
       ["Last day", p.last_day && `${showDay(p.last_day)}, ${fromNow(p.last_day)}`],
     ].filter(([, v]) => v);

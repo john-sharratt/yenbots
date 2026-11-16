@@ -19,6 +19,7 @@ collections:
       employment: { type: text, max: 40, default: full-time }
       stage: { type: text, max: 20, default: onboarding }
       start_date: { type: date }
+      probation_weeks: { type: number, min: 1, max: 104 }
       probation_end: { type: date }
       contract_end: { type: date }
       last_day: { type: date }

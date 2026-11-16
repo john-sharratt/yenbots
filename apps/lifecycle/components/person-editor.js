@@ -13,7 +13,6 @@ const TEXT = [
 
 const DATES = [
   { name: "start_date", label: "Start date" },
-  { name: "probation_end", label: "Probation ends" },
   { name: "contract_end", label: "Contract ends" },
   { name: "last_day", label: "Last day" },
 ];
@@ -45,6 +44,7 @@ export class PersonEditor extends YenElement {
     const v = {};
     for (const f of [...TEXT, ...DATES]) v[f.name] = p?.[f.name] ?? "";
     v.notes = p?.notes ?? "";
+    v.probation_weeks = p?.probation_weeks == null ? "" : String(p.probation_weeks);
     v.employment = p?.employment ?? "full-time";
     v.stage = p?.stage ?? "onboarding";
     return v;
@@ -69,7 +69,7 @@ export class PersonEditor extends YenElement {
       if (v === "" || v == null) {
         if (!isNew) out[k] = null;
       } else {
-        out[k] = v;
+        out[k] = k === "probation_weeks" ? Number(v) : v;
       }
     }
     this.emit("save", out);
@@ -93,6 +93,14 @@ export class PersonEditor extends YenElement {
             @change=${(e) => this.set("stage", e.detail)}
           ></yen-select>`
         : ""}
+      <yen-text-field
+        type="number"
+        inputmode="numeric"
+        label="Probation (weeks)"
+        hint="Leave empty if there's no probation"
+        .value=${v.probation_weeks}
+        @input=${(e) => this.set("probation_weeks", e.detail)}
+      ></yen-text-field>
       <yen-grid size="small">
         ${repeat(
           DATES,

@@ -1,5 +1,6 @@
 // The people, by name: where each is in their time with us, and how they are employed.
 import { app, computed } from "/_/yen.js";
+import { addDays } from "./days.js";
 
 export const people = app.collection("people", { order: "name" });
 
@@ -40,6 +41,12 @@ export const counts = computed(() => {
   }
   return c;
 });
+
+/** The day probation ends: the start date plus its weeks. Empty when either is missing. */
+export function probationEnd(p) {
+  if (p.start_date && p.probation_weeks) return addDays(p.start_date, Math.round(p.probation_weeks * 7));
+  return p.probation_end ?? "";
+}
 
 export function nameOf(id) {
   return people.get(id)?.name ?? "";
