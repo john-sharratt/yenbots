@@ -29,9 +29,10 @@ export function boot() {
   const id = appIdOf(location.pathname) ?? "_site";
   const base = `/a/${id}/`;
 
-  // Demo mode: the page carries the meta tag and the visitor is not signed in.
+  // Demo mode: the site adds the meta tag only for a live demo app and a
+  // visitor nobody is signed in on, so the tag alone decides.
   const demoMeta = document.querySelector('meta[name="yen-demo"]');
-  const demo = demoMeta?.content === "1" && !document.cookie.includes("yen_session");
+  const demo = demoMeta?.content === "1";
 
   const reporter = new Reporter(id, (report) =>
     fetch("/api/v1/errors", {

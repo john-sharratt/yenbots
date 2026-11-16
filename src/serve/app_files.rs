@@ -138,7 +138,11 @@ async fn serve(s: Arc<App>, id: String, rel: String, headers: HeaderMap) -> Resp
         Ok(theme) => theme,
         Err(e) => return internal(e),
     };
-    let demo = manifest.demo && manifest.status == Status::Live;
+    // The demo is only for a visitor nobody is signed in on: the gateway's
+    // identity says, never a cookie the page reads.
+    let demo = manifest.demo
+        && manifest.status == Status::Live
+        && crate::accounts::identity::identify(&headers).is_none();
     let src = Source {
         root: s.apps.root().to_path_buf(),
         id,
