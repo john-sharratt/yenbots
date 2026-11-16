@@ -32,11 +32,7 @@ export class TaskRow extends YenElement {
 
   render() {
     const t = this.task;
-    return html`<yen-checkbox
-        label=${t.done ? `Untick ${t.title}` : `Tick off ${t.title}`}
-        ?checked=${t.done}
-        @change=${() => this.emit("toggle", t)}
-      ></yen-checkbox>
+    return html`<yen-checkbox ?checked=${t.done} @change=${() => this.emit("toggle", t)}></yen-checkbox>
       <div class="words ${t.done ? "done" : ""}">
         <span class="title">${t.title}${t.pending ? " (not sent yet)" : ""}</span>
         ${this.due ? html`<span class="due ${this.late && !t.done ? "late" : ""}">${this.due}</span>` : ""}
