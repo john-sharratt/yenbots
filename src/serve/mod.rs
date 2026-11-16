@@ -987,4 +987,71 @@ mod tests {
             .unwrap();
         assert_eq!(missing.status(), StatusCode::NOT_FOUND);
     }
+    /// **A live demo app's page carries the meta tag**; a non-demo app's and a
+    /// draft demo app's do not; an unsigned request to a demo app's data API is
+    /// still refused.
+    #[tokio::test]
+    async fn a_demo_app_page_carries_the_meta_tag_and_its_api_is_still_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let demo = dir.path().join("apps").join("demo-app");
+        std::fs::create_dir_all(&demo).unwrap();
+        std::fs::write(
+            demo.join("app.yaml"),
+            "id: demo-app\nname: Demo\nstatus: live\ndemo: true\ncollections:\n  notes:\n    scope: private\n    fields:\n      text: { type: text, required: true }\n    search: [text]\n",
+        )
+        .unwrap();
+        std::fs::write(demo.join("index.html"), "<head></head><yen-app></yen-app>").unwrap();
+
+        let plain = dir.path().join("apps").join("plain-app");
+        std::fs::create_dir_all(&plain).unwrap();
+        std::fs::write(
+            plain.join("app.yaml"),
+            "id: plain-app\nname: Plain\nstatus: live\ncollections:\n  notes:\n    scope: private\n    fields:\n      text: { type: text, required: true }\n    search: [text]\n",
+        )
+        .unwrap();
+        std::fs::write(plain.join("index.html"), "<head></head><yen-app></yen-app>").unwrap();
+
+        let draft = dir.path().join("apps").join("draft-demo");
+        std::fs::create_dir_all(&draft).unwrap();
+        std::fs::write(
+            draft.join("app.yaml"),
+            "id: draft-demo\nname: Draft Demo\nstatus: draft\ndemo: true\ncollections:\n  notes:\n    scope: private\n    fields:\n      text: { type: text, required: true }\n    search: [text]\n",
+        )
+        .unwrap();
+        std::fs::write(draft.join("index.html"), "<head></head><yen-app></yen-app>").unwrap();
+
+        let app = serving(Apps::open(
+            dir.path(),
+            Arc::new(Store::in_memory().unwrap()),
+        ));
+
+        // A live demo app's page carries the meta tag.
+        let (status, body) = fetch(&app, "/a/demo-app/").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(
+            body.contains("<meta name=\"yen-demo\" content=\"1\">"),
+            "live demo app missing meta: {body}"
+        );
+
+        // A non-demo app's page does not.
+        let (status, body) = fetch(&app, "/a/plain-app/").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(!body.contains("yen-demo"), "non-demo app has meta: {body}");
+
+        // A draft demo app's page does not.
+        let (status, body) = fetch(&app, "/a/draft-demo/").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(
+            !body.contains("yen-demo"),
+            "draft demo app has meta: {body}"
+        );
+
+        // An unsigned request to a demo app's data API is still refused.
+        let (status, _) = get_as(&app, "/api/v1/data/demo-app/notes", None).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "unsigned request to demo app's data API"
+        );
+    }
 }

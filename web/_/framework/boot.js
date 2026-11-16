@@ -3,12 +3,18 @@
 // collections kept current by the change feed, `<yen-app>` and `<yen-bell>`
 // defined, the service worker registered (§11.1), and the page reloaded when
 // the site serves a new commit (§5.3).
+//
+// In demo mode (`<meta name="yen-demo" content="1">` in the page and the
+// visitor not signed in), the app runs with local collections only — no
+// server calls for data, no AI, no files, no workflows, no settings, no
+// notifications.
 
 import { signal } from "../vendor/signals-core.mjs";
 import { Api } from "./api.js";
 import { defineBell } from "./bell.js";
 import { listenForChanges, listenForReload } from "./feed.js";
 import { keyOf, openKeep } from "./idb.js";
+import { LocalCollection } from "./local-collection.js";
 import { browserDevice } from "./notify.js";
 import { describe, Reporter } from "./report.js";
 import { appIdOf } from "./router.js";
@@ -22,6 +28,10 @@ const RETRY_MS = 30_000;
 export function boot() {
   const id = appIdOf(location.pathname) ?? "_site";
   const base = `/a/${id}/`;
+
+  // Demo mode: the page carries the meta tag and the visitor is not signed in.
+  const demoMeta = document.querySelector('meta[name="yen-demo"]');
+  const demo = demoMeta?.content === "1" && !document.cookie.includes("yen_session");
 
   const reporter = new Reporter(id, (report) =>
     fetch("/api/v1/errors", {
@@ -37,6 +47,7 @@ export function boot() {
 
   // An uncaught error from the app's own files is shown on the page as well.
   const fault = signal(null);
+
   const ours = (where) => typeof where === "string" && where.includes(base);
   addEventListener("error", (e) => {
     const d = e.error ? describe(e.error) : { message: e.message, stack: `${e.filename}:${e.lineno}:${e.colno}` };
@@ -62,12 +73,16 @@ export function boot() {
     cache: keep,
     compare: new Intl.Collator("en-AU").compare,
     device: browserDevice(),
+    demo,
   });
 
   // The service worker shows the site's pushes (§11.1); a browser that
   // offers to put the site on the home screen has its offer kept for the
   // bell.
-  navigator.serviceWorker?.register("/sw.js").catch((e) => report(`the service worker did not start: ${describe(e).message}`, { page: location.href }));
+  if (!demo) {
+    navigator.serviceWorker?.register("/sw.js").catch((e) => report(`the service worker did not start: ${describe(e).message}`, { page: location.href }));
+  }
+
   const installable = signal(null);
   addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -90,6 +105,7 @@ export function boot() {
       if (sdk.queue.writes.peek().length > 0) sdk.queue.flush();
     }, RETRY_MS);
   };
+
   /** Start the app — again, after it failed to. */
   const open = () =>
     sdk
@@ -104,9 +120,10 @@ export function boot() {
       });
 
   const shell = id === "_site" ? null : defineShell(sdk, { base, fault, report, restart: open });
+
   listenForReload(EventSource, document, () => location.reload());
   // The site's own pages are no app: they use the bell, not a collection.
-  if (id !== "_site") open();
+  if (id !== "_site" && !demo) open();
 
   return { sdk, go: shell ? shell.go : (to) => location.assign(to) };
 }

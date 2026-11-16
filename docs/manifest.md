@@ -13,6 +13,7 @@ description: Things to remember, with a ping when they are due.
 tile: library/tiles/bell-coral # its picture on the landing page, from the library (docs/library.md)
 status: live                   # draft (the admins alone see it) | live
 guide: 1                       # the edition of docs/building-an-app.md it was built to
+demo: true                     # a visitor who is not signed in may try the app; their records stay in their browser
 theme:                         # its own look, held to read in light and dark (docs/design.md)
   accent: "#b03a5b"
 collections:                   # what it stores (docs/data.md)
@@ -53,6 +54,7 @@ renamed_from: remind-me        # the id it had, once, when it was renamed (docs/
 | `schedules` | `every:`, `from:`/`at:`/`before:`, or `when:`, each with `run:` | a rule that does not parse, an `at:` that is not a `time` field, a `run:` with no `workflows/<run>.js` |
 | `deadline` | `30s`, `5m`, … up to `10m` | outside 1s to 10m |
 | `renamed_from` | the app's earlier id | it is the app's own id |
+| `demo` | `true` lets a visitor who is not signed in try the app; their records stay in their browser | — |
 
 Whether an app is **public or private** is not here: it is Yen's choice on
 the admin page, kept in the store (`docs/access.md`).

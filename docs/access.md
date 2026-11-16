@@ -75,6 +75,25 @@ Every app, without asking:
 - **API tokens** are kept only as their hash, act as one account, expire,
   and are revoked on the admin page.
 
+## Demo apps
+
+An app with `demo: true` in its manifest lets a visitor who is **not signed in**
+open it and use it. Their records live only in their browser — nothing is sent
+to the server, and no other account sees them. The server still refuses every
+API route (`/api/v1/data/…`, `/api/v1/ai/…`, `/api/v1/files/…`, and the rest)
+to an unsigned visitor: the demo collection lives entirely in the browser's
+IndexedDB, written by the framework's local-collection module, never through
+the API.
+
+A signed-in visitor never enters demo mode: the framework checks the page's
+`<meta name="yen-demo">` tag **and** that the visitor is not signed in, so
+signing in always takes over. The app's `app.demo` flag is true only when both
+hold.
+
+When the visitor later signs in, the demo data stays in their browser's local
+store; the app may offer to copy it into the server's records, but that is the
+app's own choice, not the platform's.
+
 **What an app must never do:** keep a password, a key or anything secret in
 a record or a page; name a person's private details in a public app; work
 around a refusal rather than fixing what it names.

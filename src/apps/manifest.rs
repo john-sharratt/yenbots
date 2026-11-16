@@ -178,6 +178,10 @@ pub struct Manifest {
     /// jobs move to this id once, and its old address redirects here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub renamed_from: Option<String>,
+    /// Whether a visitor who is not signed in may try the app, with their
+    /// records kept only in their browser.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub demo: bool,
 }
 
 /// The names the framework gives every record beside its fields

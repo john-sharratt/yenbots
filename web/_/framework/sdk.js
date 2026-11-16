@@ -9,9 +9,18 @@ import { ApiError, Offline } from "./api.js";
 import { Collection } from "./collection.js";
 import { Files } from "./files.js";
 import { Inbox } from "./inbox.js";
+import { LocalCollection } from "./local-collection.js";
 import { Notify } from "./notify.js";
 import { Queue } from "./queue.js";
 import { routesOf } from "./router.js";
+
+/** The error a demo-mode visitor gets when they reach a signed-in feature. */
+function signInRequired() {
+  const err = new Error("Sign in to use this.");
+  err.code = "sign_in";
+  err.detail = "Sign in to use this.";
+  return err;
+}
 
 export class Sdk {
   /**
@@ -21,20 +30,66 @@ export class Sdk {
    * @param cache `{load, save}` by key, where collections keep what they last loaded
    * @param compare how text sorts (`Intl.Collator`'s `compare`)
    * @param device what the browser gives for notifications (`browserDevice()`)
+   * @param demo whether this is a demo session (no sign-in)
    */
-  constructor(id, { api, storage, cache, compare, now, device }) {
+  constructor(id, { api, storage, cache, compare, now, device, demo = false }) {
     this.id = id;
+    this.demo = demo;
     this.api = api;
     this.cache = cache;
     this.compare = compare;
-    /** Notifications on this device (§11.1): `state`, `enable()`, `disable()`, `mute(app, muted)`. */
-    this.notify = new Notify(api, device);
-    /** The account's notifications (§11.2): `items`, `unread`, `muted`, `read(id)`, `readAll()`. */
-    this.inbox = new Inbox(api);
-    /** The model and the image engine (§14): `chat`, `image`, `ask`. */
-    this.ai = new Ai(api);
-    /** The app's files (§6.1): `upload(blob)`, `url(id, {thumb})`. */
-    this.files = new Files(api);
+
+    if (demo) {
+      // Demo mode: no server calls. These features throw a sign-in error.
+      this.notify = { enable: () => { throw signInRequired(); } };
+      this.inbox = { items: [], unread: 0 };
+      this.ai = {
+        chat: () => { throw signInRequired(); },
+        image: () => { throw signInRequired(); },
+        ask: () => { throw signInRequired(); },
+      };
+      this.files = {
+        upload: () => { throw signInRequired(); },
+        url: () => { throw signInRequired(); },
+      };
+      this.workflows = {
+        run: () => { throw signInRequired(); },
+      };
+      this.settings = {
+        get: () => { throw signInRequired(); },
+        put: () => { throw signInRequired(); },
+      };
+    } else {
+      /** Notifications on this device (§11.1): `state`, `enable()`, `disable()`, `mute(app, muted)`. */
+      this.notify = new Notify(api, device);
+      /** The account's notifications (§11.2): `items`, `unread`, `muted`, `read(id)`, `readAll()`. */
+      this.inbox = new Inbox(api);
+      /** The model and the image engine (§14): `chat`, `image`, `ask`. */
+      this.ai = new Ai(api);
+      /** The app's files (§6.1): `upload(blob)`, `url(id, {thumb})`. */
+      this.files = new Files(api);
+      /**
+       * The app's workflows (§10.4): `run(name, args)` runs one now, as the
+       * account, and answers what it returned; a run that fails throws, its
+       * `code` `workflow_failed`.
+       */
+      this.workflows = {
+        run: async (name, args = {}) => {
+          const answer = await this.api.call("POST", `/workflows/${this.id}/${encodeURIComponent(name)}`, args);
+          return answer.value;
+        },
+      };
+      /**
+       * The account's own settings for the app (§6.1), kept with them on
+       * every device: `get()` answers the object (`{}` until something is
+       * chosen), `put(value)` replaces it whole.
+       */
+      this.settings = {
+        get: async () => (await this.api.call("GET", `/settings/${this.id}`)).settings,
+        put: async (value) => (await this.api.call("PUT", `/settings/${this.id}`, value)).settings,
+      };
+    }
+
     /** `GET /me`: who is signed in, and whether approved. */
     this.me = signal(null);
     /** `GET /apps/{id}`: the app's collections and their fields. */
@@ -55,26 +110,6 @@ export class Sdk {
         return answer.pictures;
       },
     };
-    /**
-     * The app's workflows (§10.4): `run(name, args)` runs one now, as the
-     * account, and answers what it returned; a run that fails throws, its
-     * `code` `workflow_failed`.
-     */
-    this.workflows = {
-      run: async (name, args = {}) => {
-        const answer = await this.api.call("POST", `/workflows/${this.id}/${encodeURIComponent(name)}`, args);
-        return answer.value;
-      },
-    };
-    /**
-     * The account's own settings for the app (§6.1), kept with them on
-     * every device: `get()` answers the object (`{}` until something is
-     * chosen), `put(value)` replaces it whole.
-     */
-    this.settings = {
-      get: async () => (await this.api.call("GET", `/settings/${this.id}`)).settings,
-      put: async (value) => (await this.api.call("PUT", `/settings/${this.id}`, value)).settings,
-    };
     this.queue = new Queue({
       send: (w) => this.send(w),
       storage,
@@ -92,7 +127,15 @@ export class Sdk {
   /** The collection `name`, filtered and ordered — one per page that asks the same. */
   collection(name, { where, order } = {}) {
     const key = JSON.stringify([name, where ?? null, order ?? null]);
-    if (!this.collections.has(key)) this.collections.set(key, new Collection(this, name, { where, order }));
+    if (!this.collections.has(key)) {
+      if (this.demo) {
+        const declared = this.info.value?.collections?.[name]?.fields;
+        const fieldNames = declared ? Object.keys(declared) : null;
+        this.collections.set(key, new LocalCollection(this.id, name, { where, order }, this.compare, fieldNames));
+      } else {
+        this.collections.set(key, new Collection(this, name, { where, order }));
+      }
+    }
     return this.collections.get(key);
   }
 

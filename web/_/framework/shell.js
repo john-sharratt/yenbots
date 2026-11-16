@@ -9,6 +9,9 @@
 // app moves to its page without loading, back and forward follow, and a
 // page change runs as a view transition unless the device asks for less
 // motion.
+//
+// In demo mode (`sdk.demo`), the shell shows the app without sign-in, with a
+// banner at the top saying what a demo is and a link to sign in for real.
 
 import { css, html, nothing } from "../vendor/lit-all.min.js";
 import { signal } from "../vendor/signals-core.mjs";
@@ -152,6 +155,19 @@ export function defineShell(sdk, { base, fault, report, restart }) {
         .note.fault {
           background: var(--yen-danger-soft);
         }
+        .note.demo {
+          background: var(--yen-accent-soft);
+          color: var(--yen-ink);
+        }
+        .demo-signin {
+          color: var(--yen-accent);
+          font-weight: var(--yen-weight-semibold);
+          text-decoration: none;
+          white-space: nowrap;
+        }
+        .demo-signin:hover {
+          text-decoration: underline;
+        }
         .note .words {
           flex: 1 1 14rem;
         }
@@ -195,12 +211,22 @@ export function defineShell(sdk, { base, fault, report, restart }) {
       return html`<header>
           <yen-icon-button icon="home" label="All the apps" href="/"></yen-icon-button>
           <h1>${sdk.title.value}</h1>
-          ${account?.status === "active" ? html`<yen-bell></yen-bell>` : nothing}
-          ${account ? html`<yen-avatar size="small" name=${account.name} src=${account.picture ?? nothing}></yen-avatar>` : nothing}
+          ${!sdk.demo && account?.status === "active" ? html`<yen-bell></yen-bell>` : nothing}
+          ${!sdk.demo && account ? html`<yen-avatar size="small" name=${account.name} src=${account.picture ?? nothing}></yen-avatar>` : nothing}
         </header>
+        ${sdk.demo ? this.demoBanner() : nothing}
         ${this.strip()}
         <main>${this.body(me)}</main>
         <yen-toasts></yen-toasts>`;
+    }
+
+    /** The demo banner shown at the top of every page in demo mode. */
+    demoBanner() {
+      return html`<div class="note demo" role="status">
+        <yen-icon name="info"></yen-icon>
+        <span class="words">This is a demo. What you add stays on this device.</span>
+        <a class="demo-signin" href="/auth/login?next=${encodeURIComponent(location.href)}">Sign in</a>
+      </div>`;
     }
 
     note(icon, words, { kind = "", role = "status", answers = nothing } = {}) {
@@ -247,27 +273,31 @@ export function defineShell(sdk, { base, fault, report, restart }) {
           <yen-button slot="action" icon="refresh" @click=${() => this.retry()}>Try again</yen-button>
         </yen-empty>`;
       }
-      if (!me) return this.loading();
-      if (!me.signed_in) {
-        const next = encodeURIComponent(location.href);
-        return html`<yen-empty icon="lock" heading=${`Sign in to use ${sdk.title.value || "this app"}`}>
-          Yen Bot's apps open once you've signed in.
-          <yen-button slot="action" href=${`/auth/login?next=${next}`}>Sign in with Google</yen-button>
-        </yen-empty>`;
+      if (sdk.demo) {
+        // In demo mode the app is shown without sign-in; the banner above says so.
+        if (sdk.routes.value.length === 0) return this.loading();
+      } else {
+        if (!me) return this.loading();
+        if (!me.signed_in) {
+          const next = encodeURIComponent(location.href);
+          return html`<yen-empty icon="lock" heading=${`Sign in to use ${sdk.title.value || "this app"}`}>
+            Yen Bot's apps open once you've signed in.
+            <yen-button slot="action" href=${`/auth/login?next=${next}`}>Sign in with Google</yen-button>
+          </yen-empty>`;
+        }
+        if (me.account.status === "blocked") {
+          return html`<yen-empty icon="lock" heading="This account can't use Yen Bot"></yen-empty>`;
+        }
+        if (me.account.status !== "active") {
+          return html`<yen-empty icon="clock" heading="Nearly there">Yen has been told you're here, and will let you in soon.</yen-empty>`;
+        }
+        if (sdk.closed.value) {
+          return html`<yen-empty icon="lock" heading="This app isn't one you can open">
+            <yen-button slot="action" variant="secondary" href="/">Back to all the apps</yen-button>
+          </yen-empty>`;
+        }
+        if (sdk.routes.value.length === 0) return this.loading();
       }
-      if (me.account.status === "blocked") {
-        return html`<yen-empty icon="lock" heading="This account can't use Yen Bot"></yen-empty>`;
-      }
-      if (me.account.status !== "active") {
-        return html`<yen-empty icon="clock" heading="Nearly there">Yen has been told you're here, and will let you in soon.</yen-empty>`;
-      }
-      if (sdk.closed.value) {
-        return html`<yen-empty icon="lock" heading="This app isn't one you can open">
-          <yen-button slot="action" variant="secondary" href="/">Back to all the apps</yen-button>
-        </yen-empty>`;
-      }
-      // The app's own modules may not have run yet.
-      if (sdk.routes.value.length === 0) return this.loading();
       const m = match(sdk.routes.value, path.value);
       if (!m) {
         return html`<yen-empty icon="search" heading="There's no such page here">

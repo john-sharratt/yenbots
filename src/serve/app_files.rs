@@ -28,6 +28,8 @@ use crate::apps::FilesAt;
 use crate::git::git_bytes;
 use crate::lifecycle::rename::now_named;
 
+use crate::apps::manifest::Status;
+
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "no such file").into_response()
 }
@@ -50,13 +52,17 @@ fn is_page(rel: &str) -> bool {
 
 /// `html` with the head every app page has as the first thing in its head:
 /// `<base href="/a/<id>/">` (unless it names a base already), the platform's
-/// stylesheet, the app's theme at `theme`, and the lines that make the site
-/// installable ([`HEAD`]).
-pub fn with_head(html: &str, id: &str, theme: &str) -> String {
+/// stylesheet, the app's theme at `theme`, the lines that make the site
+/// installable ([`HEAD`]), and — when `demo` is true — a `<meta name="yen-demo">`
+/// tag the framework reads to enter demo mode.
+pub fn with_head(html: &str, id: &str, theme: &str, demo: bool) -> String {
     let lower = html.to_ascii_lowercase();
     let mut lines = Vec::new();
     if !lower.contains("<base") {
         lines.push(format!("<base href=\"/a/{id}/\">"));
+    }
+    if demo {
+        lines.push("<meta name=\"yen-demo\" content=\"1\">".to_string());
     }
     lines.push("<link rel=\"stylesheet\" href=\"/_/yen.css\">".to_string());
     lines.push(format!("<link rel=\"stylesheet\" href=\"{theme}\">"));
@@ -64,7 +70,7 @@ pub fn with_head(html: &str, id: &str, theme: &str) -> String {
     let head = lower.match_indices("<head").map(|(at, _)| at).find(|&at| {
         matches!(
             lower.as_bytes().get(at + 5),
-            Some(b'>' | b' ' | b'\t' | b'\n' | b'\r')
+            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r')
         )
     });
     match head.and_then(|at| lower[at..].find('>').map(|end| at + end + 1)) {
@@ -76,8 +82,8 @@ pub fn with_head(html: &str, id: &str, theme: &str) -> String {
     }
 }
 
-fn page(id: &str, theme: &str, bytes: Vec<u8>, headers: &HeaderMap) -> Response {
-    let html = with_head(&String::from_utf8_lossy(&bytes), id, theme);
+fn page(id: &str, theme: &str, bytes: Vec<u8>, headers: &HeaderMap, demo: bool) -> Response {
+    let html = with_head(&String::from_utf8_lossy(&bytes), id, theme, demo);
     respond("index.html", html.as_bytes(), headers)
 }
 
@@ -103,13 +109,13 @@ impl Source {
 }
 
 /// The file `rel` of the app, or its page, with its theme at `theme`.
-fn read(src: &Source, theme: &str, rel: &str, headers: &HeaderMap) -> Response {
+fn read(src: &Source, theme: &str, rel: &str, headers: &HeaderMap, demo: bool) -> Response {
     let rel = if rel.is_empty() { "index.html" } else { rel };
     match src.read(rel) {
-        Some(bytes) if rel == "index.html" => page(&src.id, theme, bytes, headers),
+        Some(bytes) if rel == "index.html" => page(&src.id, theme, bytes, headers, demo),
         Some(bytes) => respond(rel, &bytes, headers),
         None if is_page(rel) => match src.read("index.html") {
-            Some(bytes) => page(&src.id, theme, bytes, headers),
+            Some(bytes) => page(&src.id, theme, bytes, headers, demo),
             None => not_found(),
         },
         None => not_found(),
@@ -132,12 +138,13 @@ async fn serve(s: Arc<App>, id: String, rel: String, headers: HeaderMap) -> Resp
         Ok(theme) => theme,
         Err(e) => return internal(e),
     };
+    let demo = manifest.demo && manifest.status == Status::Live;
     let src = Source {
         root: s.apps.root().to_path_buf(),
         id,
         at,
     };
-    tokio::task::spawn_blocking(move || read(&src, &theme, &rel, &headers))
+    tokio::task::spawn_blocking(move || read(&src, &theme, &rel, &headers, demo))
         .await
         .unwrap_or_else(internal)
 }
@@ -177,14 +184,14 @@ mod tests {
         let theme = "/_/theme/recipes.css?v=1";
         let html = "<!doctype html>\n<html>\n<HEAD lang=\"en\">\n  <title>R</title>\n</head>";
         assert_eq!(
-            with_head(html, "recipes", theme),
+            with_head(html, "recipes", theme, false),
             format!(
                 "<!doctype html>\n<html>\n<HEAD lang=\"en\">\n  <base href=\"/a/recipes/\">\n  {LOOK}\n  \
                  <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\">{inside}\n  <title>R</title>\n</head>"
             )
         );
         assert_eq!(
-            with_head("<head><base href=\"/x/\"></head>", "recipes", theme),
+            with_head("<head><base href=\"/x/\"></head>", "recipes", theme, false),
             format!(
                 "<head>\n  {LOOK}\n  <link rel=\"stylesheet\" href=\"/_/theme/recipes.css?v=1\">{inside}<base \
                  href=\"/x/\"></head>"
@@ -192,18 +199,32 @@ mod tests {
             "a base of its own is kept"
         );
         assert_eq!(
-            with_head("<yen-app></yen-app>", "r", "/t.css"),
+            with_head("<yen-app></yen-app>", "r", "/t.css", false),
             format!(
                 "<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n{outside}\n<yen-app></yen-app>"
             )
         );
         // `<header>` is not the head.
         assert_eq!(
-            with_head("<header></header>", "r", "/t.css"),
+            with_head("<header></header>", "r", "/t.css", false),
             format!(
                 "<base href=\"/a/r/\">\n{LOOK}\n<link rel=\"stylesheet\" href=\"/t.css\">\n{outside}\n<header></header>"
             )
         );
+    }
+
+    /// The meta tag is present for a demo app, absent for a non-demo one.
+    #[test]
+    fn the_meta_tag_marks_a_demo_app() {
+        let theme = "/_/theme/recipes.css?v=1";
+        let html = "<head></head>";
+        let with_demo = with_head(html, "recipes", theme, true);
+        assert!(
+            with_demo.contains("<meta name=\"yen-demo\" content=\"1\">"),
+            "{with_demo}"
+        );
+        let without_demo = with_head(html, "recipes", theme, false);
+        assert!(!without_demo.contains("yen-demo"), "{without_demo}");
     }
 
     #[test]
