@@ -2,7 +2,7 @@ id: lifecycle
 name: Employee Lifecycle
 description: Each person from first day to last day. Onboarding, the middle years, ER matters and leaving. Ask it anything.
 tile: library/tiles/checklist-teal
-status: draft
+status: live
 guide: 1
 theme:
   accent: "#1f6b66"
