@@ -74,3 +74,21 @@ tiles/checklist-teal:
   seed: 2970934959800885
   prompt: >-
     A flat vector illustration. The whole picture, edge to edge, is one plain flat field of a single even soft teal, the same colour in every corner, with no border, no frame, no table and no horizon line. In the centre sits an upright clipboard with a warm amber board, a small slate clip at its top, and a cream sheet of paper on it. On the sheet are three rows, one below the other; each row has a small round coral tick mark on the left and a short plain rounded sage green bar on the right. The bars are solid blank shapes with no writing, no letters and no lines of text. The clipboard has gentle two-tone shading: lighter amber on its upper left and a deeper amber on its lower right; the sheet is lighter cream on its upper left. A soft long shadow in a darker teal stretches diagonally from the clipboard down toward the lower right corner. The clipboard takes up about half of the picture, centred, seen straight on, with a wide margin of plain teal on every side reaching every edge of the picture. Drawn with simple rounded shapes, smooth edges and no outlines, with gentle two-tone shading on each object and soft long shadows falling to the lower right. Even, diffuse light from the upper left. A clean, modern, friendly flat vector style with a limited warm palette of coral, rose, amber, sage green, teal, sky blue and cream.
+tiles/robot-coral:
+  tags: [robot, bot, logo, heart, coral]
+  seed: 1759809182513762
+  prompt: >-
+    A flat vector app icon of a small friendly robot head, centred on a plain warm
+    cream background. The robot head is a rounded square shape with very soft
+    corners, coloured warm coral orange (#d4573d), with gentle two-tone shading:
+    lighter coral on the upper left and deeper coral on the lower right. Its face
+    is a large rounded cream-white screen panel taking most of the front, and on
+    the screen are two simple round dark brown eyes and a small curved smile, with
+    two soft rose-pink blush circles on the cheeks. A short antenna rises from the
+    top of the head, ending in a small deep rose heart shape (#c2375b). Two small
+    rounded amber ear bolts sit on the left and right sides of the head. The design
+    is simple, geometric, bold and symmetrical, readable at a very small size, with
+    smooth edges and no outlines. A soft subtle shadow falls to the lower right.
+    Even light from the upper left. Clean minimal flat vector illustration in a warm
+    palette of coral, rose, amber and cream, with lots of empty space around the
+    robot.

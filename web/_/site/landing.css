@@ -16,6 +16,15 @@ h1 {
   margin: 0 0 var(--yen-space-1);
 }
 
+.logo {
+  display: block;
+  margin: 0 auto var(--yen-space-3);
+  width: 96px;
+  height: 96px;
+  border: none;
+  background: none;
+}
+
 main > p {
   margin: 0 auto var(--yen-space-5);
   color: var(--yen-ink-2);

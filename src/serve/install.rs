@@ -16,7 +16,7 @@ use super::web::serve;
 use crate::app::App;
 
 /// The library tile that is the site's icon.
-pub const ICON: &str = "tiles/heart-coral";
+pub const ICON: &str = "tiles/robot-coral";
 
 /// The site's background and its bar's colour on a phone: the palette's
 /// paper and coral (`web/_/ui/tokens.css`).
@@ -24,11 +24,12 @@ const BACKGROUND: &str = "#fbf7f2";
 const THEME: &str = "#d4573d";
 
 /// The lines every page's head carries for it: the manifest, the icon an
-/// iPhone puts on its home screen, the bar's colour, and leave to run
-/// full-screen from there.
+/// iPhone puts on its home screen, the favicon, the bar's colour, and leave to
+/// run full-screen from there.
 pub const HEAD: &[&str] = &[
     "<link rel=\"manifest\" href=\"/_/manifest.webmanifest\">",
-    "<link rel=\"apple-touch-icon\" href=\"/_library/tiles/heart-coral-256.png\">",
+    "<link rel=\"apple-touch-icon\" href=\"/_library/tiles/robot-coral-256.png\">",
+    "<link rel=\"icon\" type=\"image/png\" href=\"/_library/tiles/robot-coral-128.png\">",
     "<meta name=\"theme-color\" content=\"#d4573d\">",
     "<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">",
 ];
@@ -74,7 +75,7 @@ mod tests {
     #[test]
     fn the_head_and_the_manifest_agree() {
         assert!(HEAD[1].contains(&format!("/_library/{ICON}-256.png")));
-        assert!(HEAD[2].contains(THEME));
+        assert!(HEAD[3].contains(THEME));
         let tokens = include_str!("../../web/_/ui/tokens.css");
         assert!(tokens.contains(BACKGROUND), "the paper token");
         assert!(tokens.contains(THEME), "the coral token");
