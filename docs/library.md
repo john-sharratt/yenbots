@@ -31,8 +31,11 @@ has it too.
 
 The image model draws at most 1024 a side, so a picture is committed as it
 was drawn and the site sizes it down (WebP at quality 82, transparency kept
-exactly); a
-picture of another shape is cut to its kind's shape from the centre.
+exactly); a picture of another shape is cut to its kind's shape from the centre.
+
+Tiles and stickers are also served as PNG at each size (for the home-screen
+icon and the favicon). The gate refuses a tile whose edge pixels are all
+transparent — a cut-out on transparency belongs in `stickers/`, not `tiles/`.
 
 ## The house style
 

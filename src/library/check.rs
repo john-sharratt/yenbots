@@ -8,7 +8,9 @@ use crate::check::files::Files;
 use crate::check::Refusal;
 
 use super::catalogue::{self, is_word, PATH};
+use super::dominant::field;
 use super::kind::Kind;
+use super::sizing::decode;
 
 pub const RULE: &str = "library";
 
@@ -68,6 +70,25 @@ pub fn check(files: &Files) -> Vec<Refusal> {
             None => "is not a picture of the library: it holds `<kind>/<id>.png` and catalogue.yaml alone".to_string(),
         };
         out.push(Refusal::new(RULE, path, None, message));
+    }
+    // A tile must have an opaque field at its edge; a cut-out on transparency
+    // belongs in stickers/.
+    for e in &entries {
+        if e.kind != Kind::Tiles {
+            continue;
+        }
+        if let Some(bytes) = files.pngs.get(&e.path()) {
+            if let Ok(img) = decode(bytes) {
+                if field(&img).is_none() {
+                    out.push(Refusal::new(
+                        RULE,
+                        e.path(),
+                        Some(e.line),
+                        "a tile needs an opaque field at its edge; a cut-out on transparency belongs in stickers/".to_string(),
+                    ));
+                }
+            }
+        }
     }
     out.sort();
     out
@@ -151,5 +172,32 @@ mod tests {
             r[0].message
         );
         assert!(keys(&f).is_empty());
+    }
+    /// A tile whose PNG is fully transparent is refused at the gate.
+    #[test]
+    fn a_tile_with_transparent_edges_is_refused() {
+        use image::{Rgba, RgbaImage};
+        let mut img = RgbaImage::new(32, 32);
+        // All pixels transparent — no opaque field.
+        for y in 0..32 {
+            for x in 0..32 {
+                img.put_pixel(x, y, Rgba([0, 0, 0, 0]));
+            }
+        }
+        let mut png_bytes = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+            .unwrap();
+        let mut f = Files::default();
+        f.add(
+            PATH,
+            b"tiles/ghost:\n  tags: [ghost]\n  seed: 1\n  prompt: p\n".to_vec(),
+        );
+        f.pngs.insert("library/tiles/ghost.png".to_string(), png_bytes);
+        f.names.insert("library/tiles/ghost.png".to_string());
+        let r = check(&f);
+        assert!(
+            r.iter().any(|r| r.message.contains("a tile needs an opaque field")),
+            "{r:?}"
+        );
     }
 }

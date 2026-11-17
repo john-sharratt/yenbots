@@ -29,7 +29,7 @@ const THEME: &str = "#d4573d";
 pub const HEAD: &[&str] = &[
     "<link rel=\"manifest\" href=\"/_/manifest.webmanifest\">",
     "<link rel=\"apple-touch-icon\" href=\"/_library/tiles/robot-coral-256.png\">",
-    "<link rel=\"icon\" type=\"image/png\" href=\"/_library/tiles/robot-coral-128.png\">",
+    "<link rel=\"icon\" type=\"image/png\" href=\"/_library/stickers/robot-coral-128.png\">",
     "<meta name=\"theme-color\" content=\"#d4573d\">",
     "<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">",
 ];

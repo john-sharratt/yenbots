@@ -76,11 +76,9 @@ fn the_library_sizes_every_picture() {
     let star = lib.get("stickers/star").unwrap();
     assert_eq!(star.palette, "sky");
     assert!(lib.file("stickers", "star-128.webp").unwrap().is_file());
-    assert_eq!(
-        lib.file("stickers", "star-128.png"),
-        None,
-        "a sticker is not"
-    );
+    // A sticker gets a PNG too, for the favicon.
+    assert!(lib.file("stickers", "star-128.png").unwrap().is_file());
+    assert_eq!(lib.file("stickers", "star-300.png"), None);
 }
 
 #[test]

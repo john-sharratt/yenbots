@@ -43,6 +43,8 @@ pub struct Files {
     pub text: BTreeMap<String, String>,
     /// Text files that are not UTF-8.
     pub unreadable: BTreeSet<String>,
+    /// PNG bytes under `library/`, by path, for the gate's colour check.
+    pub pngs: BTreeMap<String, Vec<u8>>,
 }
 
 impl Files {
@@ -58,6 +60,8 @@ impl Files {
                     self.unreadable.insert(path.to_string());
                 }
             }
+        } else if path.ends_with(".png") && path.starts_with("library/") {
+            self.pngs.insert(path.to_string(), bytes);
         }
     }
 
@@ -106,6 +110,7 @@ pub fn from_disk(root: &Path, id: &str) -> Result<Files> {
     let mut files = Files::default();
     walk(root, &root.join("apps").join(id), &mut files, true)?;
     walk(root, &root.join("library"), &mut files, false)?;
+    walk_pngs(root, &root.join("library"), &mut files)?;
     for path in [GUIDE, CATALOGUE] {
         let file = root.join(path);
         if file.is_file() {
@@ -134,6 +139,29 @@ fn walk(root: &Path, dir: &Path, files: &mut Files, read: bool) -> Result<()> {
             files.add(&rel, std::fs::read(&path)?);
         } else {
             files.name(&rel);
+        }
+    }
+    Ok(())
+}
+
+/// Collect PNG files under `dir` into `files.pngs`.
+fn walk_pngs(root: &Path, dir: &Path, files: &mut Files) -> Result<()> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Ok(());
+    };
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            walk_pngs(root, &path, files)?;
+            continue;
+        }
+        if path.extension().map_or(false, |e| e == "png") {
+            let rel = path
+                .strip_prefix(root)?
+                .to_string_lossy()
+                .replace('\\', "/");
+            files.pngs.insert(rel, std::fs::read(&path)?);
         }
     }
     Ok(())
@@ -168,7 +196,8 @@ fn read_commit(repo: &Path, commit: &str, app: Option<&str>) -> Result<Files> {
         if kind != Some("blob") {
             continue;
         }
-        if app.is_some_and(|a| path.starts_with(a)) || read_whole(path) {
+        let is_lib_png = path.starts_with("library/") && path.ends_with(".png");
+        if app.is_some_and(|a| path.starts_with(a)) || read_whole(path) || is_lib_png {
             wanted.push((
                 path.to_string(),
                 object.context("an object id")?.to_string(),
@@ -279,6 +308,7 @@ mod tests {
     fn library() -> Files {
         let mut f = Files::default();
         f.name("library/tiles/bell.png");
+        f.pngs.insert("library/tiles/bell.png".to_string(), vec![0x89, b'P']);
         f.add(CATALOGUE, b"# the pictures\n".to_vec());
         f.add(GUIDE, b"# Building an app\n\nEdition: 3\n".to_vec());
         f

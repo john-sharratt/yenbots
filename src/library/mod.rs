@@ -130,15 +130,21 @@ fn size_file(dir: &Path, w: u32, h: u32) -> PathBuf {
     dir.join(format!("{w}x{h}.webp"))
 }
 
-/// The cached PNG of a tile at size `w`×`h`: the home screen's icon.
+/// The cached PNG of a picture at size `w`×`h`: the home screen's icon
+/// for tiles, and the transparent cut-out for stickers.
 fn png_file(dir: &Path, w: u32, h: u32) -> PathBuf {
     dir.join(format!("{w}x{h}.png"))
+}
+
+/// Whether a kind of picture gets a PNG alongside its WebP.
+fn has_png(kind: Kind) -> bool {
+    matches!(kind, Kind::Tiles | Kind::Stickers)
 }
 
 /// Whether every file `kind`'s pictures are cached as is in `dir`.
 fn all_cached(dir: &Path, kind: Kind) -> bool {
     kind.sizes().iter().all(|&(w, h)| {
-        size_file(dir, w, h).is_file() && (kind != Kind::Tiles || png_file(dir, w, h).is_file())
+        size_file(dir, w, h).is_file() && (!has_png(kind) || png_file(dir, w, h).is_file())
     })
 }
 
@@ -227,7 +233,7 @@ impl Library {
                 for &(w, h) in sizes {
                     let at = sized(&img, w, h);
                     write_whole(&size_file(&dir, w, h), &webp(&at)?)?;
-                    if entry.kind == Kind::Tiles {
+                    if has_png(entry.kind) {
                         write_whole(&png_file(&dir, w, h), &to_png(&at)?)?;
                     }
                 }
@@ -292,7 +298,7 @@ impl Library {
     }
 
     /// The sized file a request names — `<kind>/<id>-<width>.webp`, or a
-    /// tile's `.png` — when the picture and the size are there.
+    /// tile's or sticker's `.png` — when the picture and the size are there.
     pub fn file(&self, kind: &str, file: &str) -> Option<PathBuf> {
         let (stem, as_png) = match file.strip_suffix(".webp") {
             Some(stem) => (stem, false),
@@ -301,7 +307,7 @@ impl Library {
         let (id, width) = stem.rsplit_once('-')?;
         let width: u32 = width.parse().ok()?;
         let p = self.get(&format!("{kind}/{id}"))?;
-        if as_png && p.entry.kind != Kind::Tiles {
+        if as_png && !has_png(p.entry.kind) {
             return None;
         }
         let &(w, h) = p.entry.kind.sizes().iter().find(|s| s.0 == width)?;
